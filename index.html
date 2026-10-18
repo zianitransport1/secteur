@@ -14,23 +14,62 @@
 <link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
-  :root{--bg:#0f172a;--card:#ffffff;--ink:#0f172a;--mut:#64748b;--pink:#ff2ec4;--green:#16a34a;--sector:#00c800;--blue:#2563eb;}
-  *{box-sizing:border-box}
+  :root{--bg:#0f172a;--card:#ffffff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--pink:#ff2ec4;--green:#16a34a;--sector:#00c800;--blue:#2563eb;--amber:#d97706;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  button{font-family:inherit}
+  .screen{position:fixed;inset:0;display:none;overflow:auto}
+  .screen.on{display:block}
+
+  /* ---- Liste des secteurs ---- */
+  #home{background:#f1f5f9}
+  .head{background:var(--bg);color:#fff;padding:calc(18px + env(safe-area-inset-top)) 18px 22px}
+  .head h1{margin:0;font-size:24px;font-weight:800}
+  .head p{margin:4px 0 0;color:#94a3b8;font-size:14px}
+  .list{padding:14px 14px calc(24px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto}
+  .hint{font-size:14px;color:var(--mut);margin:4px 4px 12px}
+  .card{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:0;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 2px 8px rgba(15,23,42,.06);font-size:16px;color:var(--ink)}
+  .card .ic{width:44px;height:44px;border-radius:12px;background:#fdf2fb;display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
+  .card .tx{flex:1;min-width:0}
+  .card b{display:block;font-size:17px}
+  .card small{display:block;color:var(--mut);font-size:13px;margin-top:2px}
+  .card .pc{font-weight:800;color:var(--green);font-size:16px;font-variant-numeric:tabular-nums}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;margin-left:6px;vertical-align:2px}
+  .tag.rep{background:#fef3c7;color:#92400e}
+  .tag.ok{background:#dcfce7;color:#166534}
+  .empty{background:var(--card);border-radius:16px;padding:22px;text-align:center;color:var(--mut)}
+
+  /* ---- Rappel code QR ---- */
+  #qr{background:var(--bg);color:#fff;text-align:center}
+  .qrwrap{max-width:440px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));min-height:100%;display:flex;flex-direction:column}
+  .back{align-self:flex-start;background:none;border:0;color:#94a3b8;font-size:15px;padding:6px 0}
+  .warn{background:#fbbf24;color:#0f172a;border-radius:14px;padding:12px 14px;font-weight:800;font-size:17px;margin:10px 0 6px}
+  #qr h2{margin:10px 0 2px;font-size:24px}
+  #qr .sub2{color:#94a3b8;font-size:14px}
+  .qrbox{background:#fff;border-radius:20px;padding:18px;margin:18px auto 10px;width:100%;max-width:320px}
+  .qrbox svg,.qrbox img{width:100%;height:auto;display:block}
+  .code{font-size:26px;font-weight:800;letter-spacing:3px;margin:6px 0 4px;font-family:ui-monospace,Menlo,monospace}
+  .noqr{background:#1e293b;border-radius:16px;padding:20px;margin:18px 0;color:#fbbf24;font-size:16px;line-height:1.4}
+  .big{display:block;width:100%;border:0;border-radius:16px;padding:18px;font-size:18px;font-weight:800;color:#fff;background:var(--green);box-shadow:0 8px 24px rgba(22,163,74,.4);margin-top:auto}
+  .big.grey{background:#334155;box-shadow:none}
+
+  /* ---- Carte ---- */
   #map{position:fixed;inset:0}
-  .top{position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));z-index:500;background:var(--card);border-radius:16px;
-       box-shadow:0 6px 24px rgba(0,0,0,.18);padding:12px 14px}
+  .top{position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));z-index:500;background:var(--card);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:10px 14px 12px}
   .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
-  .who{font-weight:800;font-size:19px}
+  .menu{border:0;background:#f1f5f9;border-radius:10px;width:38px;height:38px;font-size:18px;flex:none}
+  .who{font-weight:800;font-size:18px;line-height:1.1}
   .sub{font-size:12px;color:var(--mut);margin-top:2px}
-  .pct{font-size:30px;font-weight:800;letter-spacing:-1px;color:var(--green);font-variant-numeric:tabular-nums}
-  .bar{height:8px;border-radius:99px;background:#fde7f7;margin-top:10px;overflow:hidden}
+  .pct{font-size:28px;font-weight:800;letter-spacing:-1px;color:var(--green);font-variant-numeric:tabular-nums}
+  .bar{height:8px;border-radius:99px;background:#fde7f7;margin-top:8px;overflow:hidden}
   .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#22c55e,#16a34a);border-radius:99px;transition:width .6s}
-  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#94a3b8;margin-right:6px;vertical-align:middle}
-  .dot.on{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25)}
-  .legend{display:flex;gap:12px;font-size:11px;color:var(--mut);margin-top:8px;flex-wrap:wrap}
+  .legend{display:flex;gap:12px;font-size:11px;color:var(--mut);margin-top:7px;flex-wrap:wrap}
   .legend b{display:inline-block;width:16px;height:4px;border-radius:2px;vertical-align:middle;margin-right:4px}
+  .live{display:none;margin-top:6px;font-size:12px;font-weight:600;color:var(--green)}
+  .live.on{display:block}
+  .live.warn{color:var(--amber)}
   .sheet{position:fixed;left:0;right:0;bottom:0;z-index:500;background:var(--card);border-radius:18px 18px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.18);
          padding:8px 14px calc(12px + env(safe-area-inset-bottom));max-height:45vh;display:flex;flex-direction:column;transition:max-height .3s}
   .sheet.closed{max-height:calc(58px + env(safe-area-inset-bottom))}
@@ -40,105 +79,317 @@
   .sheet h3{margin:0;font-size:15px;display:flex;gap:8px;align-items:center}
   .sheet h3 em{font-style:normal;margin-left:auto;color:var(--mut);font-size:12px}
   .sheet h3 span{color:var(--mut);font-weight:500;font-size:13px}
-  ul{list-style:none;margin:0;padding:0;overflow:auto}
-  li{display:flex;justify-content:space-between;align-items:center;padding:9px 2px;border-top:1px solid #f1f5f9;font-size:14px}
-  li .n{display:flex;align-items:center;gap:8px}
-  li .t{width:10px;height:10px;border-radius:3px;background:var(--pink);flex:none}
-  li.done{color:var(--mut)} li.done .t{background:var(--green)} li.part .t{background:linear-gradient(90deg,var(--green) 50%,var(--pink) 50%)}
-  li .a{font-size:12px;color:var(--mut)}
+  .sheet ul{list-style:none;margin:0;padding:0;overflow:auto}
+  .sheet li{display:flex;justify-content:space-between;align-items:center;padding:9px 2px;border-top:1px solid #f1f5f9;font-size:14px}
+  .sheet li .n{display:flex;align-items:center;gap:8px}
+  .sheet li .t{width:10px;height:10px;border-radius:3px;background:var(--pink);flex:none}
+  .sheet li.done{color:var(--mut)} .sheet li.done .t{background:var(--green)} .sheet li.part .t{background:linear-gradient(90deg,var(--green) 50%,var(--pink) 50%)}
+  .sheet li .a{font-size:12px;color:var(--mut)}
   .btn{position:fixed;right:12px;z-index:500;width:44px;height:44px;border-radius:14px;border:0;background:var(--card);box-shadow:0 4px 14px rgba(0,0,0,.2);font-size:20px}
   #me{bottom:calc(45vh + 12px)} .sheet.closed ~ #me{bottom:calc(72px + env(safe-area-inset-bottom))}
-  .msg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:900;background:var(--bg);color:#fff;text-align:center;padding:30px;font-size:16px}
-  .leaflet-control-attribution{font-size:9px}
+  #qrbtn{bottom:calc(45vh + 64px);font-size:13px;font-weight:800} .sheet.closed ~ #qrbtn{bottom:calc(124px + env(safe-area-inset-bottom))}
   .go{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom));z-index:600;border:0;border-radius:99px;
-      padding:15px 26px;font-size:17px;font-weight:800;color:#fff;background:#16a34a;box-shadow:0 8px 24px rgba(22,163,74,.45);white-space:nowrap}
-  .go.stop{background:#0f172a;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:11px 20px;font-size:15px}
+      padding:15px 26px;font-size:17px;font-weight:800;color:#fff;background:var(--green);box-shadow:0 8px 24px rgba(22,163,74,.45);white-space:nowrap}
+  .go.stop{background:var(--bg);box-shadow:0 8px 24px rgba(0,0,0,.35);padding:11px 20px;font-size:15px}
   .sheet:not(.closed) ~ .go{display:none}
-  .live{display:none;margin-top:6px;font-size:12px;font-weight:600;color:#16a34a}
-  .live.on{display:block}
-  .live.warn{color:#d97706}
+  .leaflet-control-attribution{font-size:9px}
+  .msg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:900;background:var(--bg);color:#fff;text-align:center;padding:30px;font-size:16px}
+  .msg.on{display:flex}
+  .msg button{border:0;border-radius:12px;padding:12px 18px;font-size:15px;font-weight:700;background:#fff;color:var(--ink)}
+  .spin{width:34px;height:34px;border-radius:50%;border:4px solid #334155;border-top-color:#fff;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
-<div id="map"></div>
-<div class="top">
-  <div class="row">
-    <div>
-      <div class="who" id="who">Ma tournée</div>
-      <div class="sub"><span class="dot" id="dot"></span><span id="status">Chargement…</span></div>
-    </div>
-    <div style="text-align:right">
-      <div class="pct" id="pct">–</div>
-      <div class="sub" id="cnt"></div>
-    </div>
+
+<!-- 1. Mes secteurs -->
+<div class="screen" id="home">
+  <div class="head"><h1 id="hName">Ma tournée</h1><p id="hWeek">Chargement…</p></div>
+  <div class="list">
+    <p class="hint">Choisis le secteur que tu commences :</p>
+    <div id="cards"></div>
   </div>
-  <div class="live" id="live"></div>
-  <div class="bar"><i id="bar"></i></div>
-  <div class="legend"><span><b style="background:var(--pink)"></b>À faire</span><span><b style="background:var(--green)"></b>Fait</span><span><b style="background:var(--blue)"></b>Mon trajet</span><span><b style="background:var(--sector)"></b>Secteur</span></div>
 </div>
-<div class="sheet closed" id="sheet">
-  <div class="grab" id="grab"><div class="handle"></div>
-  <h3>Rues <span id="rest"></span><em id="arrow">▲</em></h3></div>
-  <ul id="list"></ul>
+
+<!-- 2. Rappel code QR -->
+<div class="screen" id="qr">
+  <div class="qrwrap">
+    <button class="back" id="qrBack">← Mes secteurs</button>
+    <div class="warn">📱 Scanne ce code QR avec ton PDA avant de commencer</div>
+    <h2 id="qName"></h2>
+    <div class="sub2" id="qInfo"></div>
+    <div id="qBody"></div>
+    <button class="big" id="qOk">✅ J’ai bien scanné le code QR</button>
+  </div>
 </div>
-<button class="btn" id="me" title="Me centrer">◎</button>
-<button class="go" id="go">▶ Démarrer ma tournée</button>
-<div class="msg" id="msg" style="display:none"></div>
+
+<!-- 3. Carte -->
+<div class="screen" id="mapScreen">
+  <div id="map"></div>
+  <div class="top">
+    <div class="row">
+      <button class="menu" id="toHome" title="Mes secteurs">☰</button>
+      <div style="flex:1;min-width:0">
+        <div class="who" id="who">Secteur</div>
+        <div class="sub" id="status"></div>
+      </div>
+      <div style="text-align:right">
+        <div class="pct" id="pct">–</div>
+        <div class="sub" id="cnt"></div>
+      </div>
+    </div>
+    <div class="live" id="live"></div>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="legend"><span><b style="background:var(--pink)"></b>À faire</span><span><b style="background:var(--green)"></b>Fait</span><span><b style="background:var(--blue)"></b>Mon trajet</span><span><b style="background:var(--sector)"></b>Secteur</span></div>
+  </div>
+  <div class="sheet closed" id="sheet">
+    <div class="grab" id="grab"><div class="handle"></div>
+    <h3>Rues <span id="rest"></span><em id="arrow">▲</em></h3></div>
+    <ul id="list"></ul>
+  </div>
+  <button class="btn" id="qrbtn" title="Revoir le code QR">QR</button>
+  <button class="btn" id="me" title="Me centrer">◎</button>
+  <button class="go" id="go">▶ Démarrer ma tournée</button>
+</div>
+
+<div class="msg" id="msg"></div>
+
 <script>
 (function(){
+  'use strict';
+  var API = 'https://ziani1.app.n8n.cloud/webhook/tournee-api';
+  var SEND_EVERY = 5 * 60 * 1000;   // envoi des positions au serveur toutes les 5 min (économise les exécutions n8n)
+  var R = 25, STEP = 8, DONE = 0.8; // rue faite si le chauffeur est passé à moins de 25 m sur 80 % de sa longueur
   var key = new URLSearchParams(location.search).get('k') || '';
-  var BASE = 'https://ziani1.app.n8n.cloud/webhook/tournee';
-  var api = BASE + '-data?k=' + encodeURIComponent(key);
-  var map = L.map('map', { zoomControl: false, attributionControl: true }).setView([50.853, 4.281], 15);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles © Esri' }).addTo(map);
-  var gSector = L.layerGroup().addTo(map), gStreets = L.layerGroup().addTo(map), gTrace = L.layerGroup().addTo(map), gMe = L.layerGroup().addTo(map);
-  var gLive = L.layerGroup().addTo(map);
-  var first = true, lastPos = null;
-  var posUrl = BASE + '-pos';
-  var sheet = document.getElementById('sheet');
-  var grab = document.getElementById('grab'), y0 = null, moved = false;
-  function setOpen(o){ sheet.classList.toggle('closed', !o); document.getElementById('arrow').textContent = o ? '▼' : '▲'; }
+  var NL = String.fromCharCode(10);
+  var $ = function(id){ return document.getElementById(id); };
+  function ls(k, v){ try { if (v === undefined) return JSON.parse(localStorage.getItem('mt_' + key + '_' + k) || 'null'); localStorage.setItem('mt_' + key + '_' + k, JSON.stringify(v)); } catch (e) { return null; } }
+  function lsDel(k){ try { localStorage.removeItem('mt_' + key + '_' + k); } catch (e) {} }
+
+  function show(id){ ['home','qr','mapScreen'].forEach(function(s){ $(s).classList.toggle('on', s === id); }); if (id === 'mapScreen' && map) setTimeout(function(){ map.invalidateSize(); }, 50); }
+  function msg(html, btn, fn){ var m = $('msg'); m.innerHTML = html; if (btn) { var b = document.createElement('button'); b.textContent = btn; b.onclick = fn; m.appendChild(b); } m.classList.add('on'); }
+  function hideMsg(){ $('msg').classList.remove('on'); }
+  function api(body){
+    body.k = key;
+    return fetch(API, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify(body), cache:'no-store' })
+      .then(function(r){ if (r.status === 404) throw new Error('lien'); if (!r.ok) throw new Error('serveur'); return r.json(); });
+  }
+
+  // ================= 1. Liste des secteurs =================
+  var data = null, cur = null;
+  function wk(){ return data ? data.annee + '-' + data.semaine : ''; }
+  function renderHome(){
+    $('hName').textContent = 'Bonjour ' + (data.chauffeur || '').split(' ')[0] + ' 👋';
+    $('hWeek').textContent = 'Semaine ' + data.semaine + ' · ' + data.secteurs.length + ' secteur' + (data.secteurs.length > 1 ? 's' : '');
+    document.title = 'Ma tournée';
+    var box = $('cards'); box.innerHTML = '';
+    if (!data.secteurs.length) { box.innerHTML = '<div class="empty">Aucun secteur ne t’est attribué cette semaine.<br>Demande à ton responsable.</div>'; return; }
+    data.secteurs.forEach(function(s){
+      var b = document.createElement('button'); b.className = 'card';
+      var p = ls('pct_' + wk() + '_' + s.id);
+      b.innerHTML = '<span class="ic">📍</span><span class="tx"><b></b><small></small></span><span class="pc"></span>';
+      b.querySelector('b').textContent = s.nom;
+      if (s.remplacement) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag rep">Remplacement</span>');
+      if (ls('scan_' + wk() + '_' + s.id)) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag ok">QR scanné</span>');
+      b.querySelector('small').textContent = (s.boites ? s.boites + ' boîtes' : 'Pas de bon BD Media cette semaine') + (s.kml ? '' : ' · carte pas encore disponible');
+      b.querySelector('.pc').textContent = p != null ? p + ' %' : '›';
+      b.onclick = function(){ openQr(s); };
+      box.appendChild(b);
+    });
+  }
+  function loadHome(){
+    msg('<div class="spin"></div>Chargement de tes secteurs…');
+    api({ a:'init' }).then(function(d){ data = d; ls('init', d); hideMsg(); renderHome(); show('home'); })
+      .catch(function(e){
+        if (e.message === 'lien') return msg('Ce lien n’est pas valide.<br>Demande ton lien à ton responsable.');
+        var c = ls('init'); if (c) { data = c; hideMsg(); renderHome(); show('home'); return; }
+        msg('Pas de connexion internet.', 'Réessayer', loadHome);
+      });
+  }
+
+  // ================= 2. Rappel code QR =================
+  function openQr(s){
+    cur = s;
+    $('qName').textContent = s.nom;
+    $('qInfo').textContent = 'Semaine ' + data.semaine + (s.num ? ' · secteur ' + s.num : '') + (s.boites ? ' · ' + s.boites + ' boîtes' : '');
+    var body = $('qBody');
+    if (s.code && window.qrcode) {
+      var q = qrcode(0, 'M'); q.addData(s.code); q.make();
+      body.innerHTML = '<div class="qrbox">' + q.createSvgTag({ cellSize: 8, margin: 2, scalable: true }) + '</div><div class="code"></div><div class="sub2">Code de notification BD Media</div>';
+      body.querySelector('.code').textContent = s.code;
+      $('qOk').textContent = '✅ J’ai bien scanné le code QR'; $('qOk').className = 'big';
+    } else {
+      body.innerHTML = '<div class="noqr">⚠️ Le code QR de ce secteur n’est pas encore disponible pour la semaine ' + data.semaine + '.<br><br>Scanne le code QR du bon papier avec ton PDA, ou préviens ton responsable.</div>';
+      $('qOk').textContent = 'J’ai scanné le bon papier → continuer'; $('qOk').className = 'big grey';
+    }
+    show('qr'); $('qr').scrollTop = 0;
+  }
+  $('qrBack').onclick = function(){ if (map && cur && sectorLoaded === cur.id) show('mapScreen'); else { renderHome(); show('home'); } };
+  $('qOk').onclick = function(){ ls('scan_' + wk() + '_' + cur.id, Date.now()); openMap(cur); };
+
+  // ================= 3. Carte + suivi =================
+  var map = null, gSector, gStreets, gTrace, gMe, sectorLoaded = null;
+  var streets = [], sectorPoly = null, serverPts = [], first = true, lastPos = null, follow = true;
+  function initMap(){
+    if (map) return;
+    map = L.map('map', { zoomControl: false }).setView([50.85, 4.3], 14);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles © Esri' }).addTo(map);
+    gSector = L.layerGroup().addTo(map); gStreets = L.layerGroup().addTo(map); gTrace = L.layerGroup().addTo(map); gMe = L.layerGroup().addTo(map);
+    map.on('dragstart', function(){ follow = false; });
+  }
+  function parseKml(txt){
+    var doc = new DOMParser().parseFromString(txt, 'text/xml');
+    var out = { poly: null, streets: [] };
+    var pms = doc.getElementsByTagName('Placemark');
+    function coords(el){ return (el.textContent || '').trim().split(/\s+/).map(function(t){ var p = t.split(','); return [+p[1], +p[0]]; }).filter(function(p){ return !isNaN(p[0]) && !isNaN(p[1]); }); }
+    for (var i = 0; i < pms.length; i++) {
+      var pm = pms[i], nm = (pm.getElementsByTagName('name')[0] || {}).textContent || '';
+      var de = (pm.getElementsByTagName('description')[0] || {}).textContent || '';
+      var poly = pm.getElementsByTagName('Polygon')[0], line = pm.getElementsByTagName('LineString')[0];
+      if (poly) { var c = poly.getElementsByTagName('coordinates')[0]; if (c && !out.poly) out.poly = coords(c); }
+      else if (line) {
+        var c2 = line.getElementsByTagName('coordinates')[0]; if (!c2) continue;
+        var m = de.match(/(\d+)\s*adresse/);
+        out.streets.push({ name: nm.replace(/^D\d+\s*[–-]\s*/, '').replace(/\s*\(\d+\)\s*$/, '').trim(), addr: m ? +m[1] : 0, ll: coords(c2) });
+      }
+    }
+    return out;
+  }
+  var KY = 110574, KX = 70300;
+  function xy(p){ return [p[1] * KX, p[0] * KY]; }
+  function prepareStreets(list){
+    list.forEach(function(s){
+      var samp = [];
+      for (var i = 1; i < s.ll.length; i++) {
+        var a = s.ll[i-1], b = s.ll[i], A = xy(a), B = xy(b);
+        var L0 = Math.hypot(B[0]-A[0], B[1]-A[1]), n = Math.max(1, Math.ceil(L0 / STEP));
+        for (var t = (i === 1 ? 0 : 1); t <= n; t++) { var f = t / n;
+          samp.push({ ll: [a[0] + (b[0]-a[0]) * f, a[1] + (b[1]-a[1]) * f], x: A[0] + (B[0]-A[0]) * f, y: A[1] + (B[1]-A[1]) * f }); }
+      }
+      s.samp = samp;
+    });
+    return list;
+  }
+  function allPoints(){
+    var live = ls('trace_' + wk()) || [];
+    return serverPts.concat(live);
+  }
+  function compute(){
+    var grid = {};
+    allPoints().forEach(function(p){ var q = xy(p), k = Math.floor(q[0] / R) + ':' + Math.floor(q[1] / R); (grid[k] = grid[k] || []).push(q); });
+    function near(x, y){ var cx = Math.floor(x / R), cy = Math.floor(y / R);
+      for (var i = -1; i <= 1; i++) for (var j = -1; j <= 1; j++) { var c = grid[(cx+i) + ':' + (cy+j)]; if (c) for (var n = 0; n < c.length; n++) { var dx = c[n][0]-x, dy = c[n][1]-y; if (dx*dx + dy*dy <= R*R) return true; } }
+      return false; }
+    var tot = 0, done = 0;
+    streets.forEach(function(s){
+      var L0 = 0, Ld = 0, runs = [], curRun = null;
+      s.samp.forEach(function(p, i){
+        p.ok = near(p.x, p.y);
+        if (i > 0) { var q = s.samp[i-1], d = Math.hypot(p.x - q.x, p.y - q.y); L0 += d; if (p.ok && q.ok) Ld += d; else if (p.ok || q.ok) Ld += d / 2; }
+        if (!curRun || curRun.ok !== p.ok) { if (curRun) curRun.c.push(p.ll); curRun = { ok: p.ok, c: [p.ll] }; runs.push(curRun); } else curRun.c.push(p.ll);
+      });
+      s.frac = L0 > 0 ? Ld / L0 : (s.samp[0] && s.samp[0].ok ? 1 : 0); s.done = s.frac >= DONE; s.runs = runs;
+      tot += L0; done += Ld;
+    });
+    return tot ? Math.round(done / tot * 100) : 0;
+  }
+  function drawAll(){
+    var pct = compute();
+    gStreets.clearLayers();
+    streets.forEach(function(s){ s.runs.forEach(function(r){ if (r.c.length > 1) L.polyline(r.c, { color: r.ok ? '#16a34a' : '#ff2ec4', weight: 8, opacity: .95, lineCap:'round' }).bindTooltip(s.name).addTo(gStreets); }); });
+    gTrace.clearLayers();
+    var pts = allPoints(); if (pts.length > 1) L.polyline(pts.map(function(p){ return [p[0], p[1]]; }), { color:'#2563eb', weight:3, opacity:.85 }).addTo(gTrace);
+    // liste par nom de rue
+    var by = {}, order = [];
+    streets.forEach(function(s){ var b = by[s.name]; if (!b) { b = by[s.name] = { name: s.name, addr: 0, n: 0, d: 0 }; order.push(b); } b.addr += s.addr; b.n++; if (s.done) b.d++; });
+    order.forEach(function(b){ b.done = b.d === b.n; b.part = b.d > 0 && !b.done; });
+    order.sort(function(a, b){ return (a.done - b.done) || (b.addr - a.addr); });
+    var nd = order.filter(function(b){ return b.done; }).length;
+    $('pct').textContent = pct + ' %'; $('bar').style.width = pct + '%';
+    $('cnt').textContent = nd + ' / ' + order.length + ' rues';
+    $('rest').textContent = order.length - nd ? (order.length - nd) + ' à faire' : 'tout est fait 🎉';
+    var ul = $('list'); ul.innerHTML = '';
+    order.forEach(function(b){
+      var li = document.createElement('li'); li.className = b.done ? 'done' : (b.part ? 'part' : '');
+      li.innerHTML = '<span class="n"><span class="t"></span><span></span></span><span class="a"></span>';
+      li.querySelector('.n span:last-child').textContent = b.name;
+      li.querySelector('.a').textContent = b.done ? 'fait' : (b.part ? 'en partie' : (b.addr ? b.addr + ' adr.' : ''));
+      li.onclick = function(){ var bb = null; streets.forEach(function(s){ if (s.name === b.name) s.ll.forEach(function(p){ bb = bb ? bb.extend(p) : L.latLngBounds(p, p); }); }); if (bb) { setOpen(false); follow = false; map.fitBounds(bb.pad(0.4)); } };
+      ul.appendChild(li);
+    });
+    if (cur) { ls('pct_' + wk() + '_' + cur.id, pct); }
+  }
+  function openMap(s){
+    initMap(); show('mapScreen');
+    $('who').textContent = s.nom; document.title = s.nom;
+    $('status').textContent = data.chauffeur + ' · semaine ' + data.semaine;
+    if (sectorLoaded === s.id) { drawAll(); return; }
+    msg('<div class="spin"></div>Chargement de la carte ' + s.nom.replace(/</g, '') + '…');
+    var cacheKey = 'map_' + wk() + '_' + s.id;
+    api({ a:'sector', s: s.id }).then(function(d){ ls(cacheKey, d); useMap(s, d); })
+      .catch(function(e){ var c = ls(cacheKey); if (c) return useMap(s, c);
+        msg(e.message === 'lien' ? 'Ce secteur n’est plus attribué à ton lien.' : 'Pas de connexion internet.', 'Retour', function(){ hideMsg(); renderHome(); show('home'); }); });
+  }
+  function useMap(s, d){
+    hideMsg(); sectorLoaded = s.id; first = true;
+    serverPts = (d.trace || []).map(function(p){ return [p[0], p[1]]; });
+    gSector.clearLayers(); gStreets.clearLayers(); gTrace.clearLayers();
+    if (!d.kml) { streets = []; sectorPoly = null; $('pct').textContent = '–'; $('cnt').textContent = ''; $('rest').textContent = '';
+      $('list').innerHTML = ''; setLive('La carte de ce secteur n’est pas encore dans Notion · ton trajet est quand même enregistré', true); return; }
+    var k = parseKml(d.kml); sectorPoly = k.poly; streets = prepareStreets(k.streets);
+    if (sectorPoly) L.polygon(sectorPoly, { color:'#00c800', weight:4, fillColor:'#00c800', fillOpacity:.06 }).addTo(gSector);
+    drawAll();
+    var b = sectorPoly ? L.polygon(sectorPoly).getBounds() : (streets.length ? L.polyline(streets.map(function(s){ return s.ll; })).getBounds() : null);
+    if (b && first && watchId === null) { map.fitBounds(b, { padding:[20, 20] }); first = false; }
+    if (watchId === null && !ls('on')) setLive('');
+  }
+  $('toHome').onclick = function(){ renderHome(); show('home'); };
+  $('qrbtn').onclick = function(){ if (cur) openQr(cur); };
+
+  // bas de l'écran : liste des rues
+  var sheet = $('sheet'), grab = $('grab'), y0 = null, moved = false;
+  function setOpen(o){ sheet.classList.toggle('closed', !o); $('arrow').textContent = o ? '▼' : '▲'; }
   grab.addEventListener('touchstart', function(e){ y0 = e.touches[0].clientY; moved = false; }, { passive:true });
   grab.addEventListener('touchmove', function(e){ if (y0 !== null && Math.abs(e.touches[0].clientY - y0) > 15) moved = true; }, { passive:true });
   grab.addEventListener('touchend', function(e){ if (y0 === null) return; var dy = e.changedTouches[0].clientY - y0; y0 = null;
     if (moved) setOpen(dy < 0); else setOpen(sheet.classList.contains('closed')); e.preventDefault(); });
   grab.addEventListener('click', function(){ setOpen(sheet.classList.contains('closed')); });
 
-  // ===== Suivi GPS intégré (remplace Traccar Client) =====
-  var NL = String.fromCharCode(10), follow = true, gotFix = false;
-  map.on('dragstart', function(){ follow = false; });
-  var LS = 'tournee_' + key, watchId = null, wakeLock = null, queue = [], live = [], lastSent = null, sending = false;
-  try { queue = JSON.parse(localStorage.getItem(LS + '_q') || '[]'); } catch (e) { queue = []; }
-  function saveQ(){ try { localStorage.setItem(LS + '_q', JSON.stringify(queue.slice(-500))); } catch (e) {} }
-  function setLive(txt, warn){ var el = document.getElementById('live'); el.textContent = txt || ''; el.className = 'live' + (txt ? ' on' : '') + (warn ? ' warn' : ''); }
-  function dist(a, b){ var kx = 111320 * Math.cos(a[0] * Math.PI / 180); return Math.hypot((a[1]-b[1]) * kx, (a[0]-b[0]) * 110574); }
+  // ---- GPS intégré ----
+  var watchId = null, wakeLock = null, queue = ls('q') || [], lastSent = null, sending = false, gotFix = false, lastFlush = Date.now(), lastDraw = 0;
+  function setLive(t, w){ var el = $('live'); el.textContent = t || ''; el.className = 'live' + (t ? ' on' : '') + (w ? ' warn' : ''); }
+  function dist(a, b){ return Math.hypot((a[1]-b[1]) * KX, (a[0]-b[0]) * KY); }
   function keepAwake(){
-    if (!('wakeLock' in navigator)) { setLive('En tournée · pense à garder l’écran allumé', true); return; }
+    if (!('wakeLock' in navigator)) { setLive('En tournée · garde l’écran allumé', true); return; }
     navigator.wakeLock.request('screen').then(function(w){ if (watchId === null) { w.release(); return; } wakeLock = w; if (gotFix) setLive('● En tournée · écran maintenu allumé'); })
-      .catch(function(){ if (watchId !== null) setLive('En tournée · pense à garder l’écran allumé', true); });
+      .catch(function(){ if (watchId !== null) setLive('En tournée · garde l’écran allumé', true); });
   }
   document.addEventListener('visibilitychange', function(){
-    if (document.visibilityState === 'visible' && watchId !== null) { keepAwake(); flush(); }
+    if (document.visibilityState === 'visible' && watchId !== null) keepAwake();
+    if (document.visibilityState === 'hidden') flush(true);
   });
-  function flush(){
+  function flush(force){
     if (sending || !queue.length) return;
-    sending = true; var batch = queue.slice(0, 50);
-    fetch(posUrl, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify({ k: key, positions: batch }) })
-      .then(function(r){ if (!r.ok) throw 0; queue = queue.slice(batch.length); saveQ(); })
-      .catch(function(){ setLive('Pas de réseau · positions gardées, envoi dès que possible', true); })
+    if (!force && Date.now() - lastFlush < SEND_EVERY && queue.length < 60) return;
+    sending = true; var batch = queue.slice(0, 200);
+    api({ a:'pos', positions: batch })
+      .then(function(){ queue = queue.slice(batch.length); ls('q', queue); lastFlush = Date.now(); })
+      .catch(function(){ if (watchId !== null) setLive('Pas de réseau · positions gardées, envoi dès que possible', true); })
       .then(function(){ sending = false; });
   }
   function onPos(pos){
     var c = pos.coords; if (c.accuracy > 60) return;
-    var pt = [c.latitude, c.longitude];
-    lastPos = pt;
-    if (!gotFix) { gotFix = true; map.setView(pt, 17); } else if (follow) map.panTo(pt);
+    var pt = [c.latitude, c.longitude]; lastPos = pt;
+    if (!gotFix) { gotFix = true; follow = true; map.setView(pt, 17); } else if (follow) map.panTo(pt);
     gMe.clearLayers(); L.circleMarker(pt, { radius:9, color:'#fff', weight:3, fillColor:'#2563eb', fillOpacity:1 }).addTo(gMe);
-    if (lastSent && dist(lastSent, pt) < 12 && pos.timestamp - lastSent.t < 60000) return;
+    if (lastSent && dist(lastSent, pt) < 10 && pos.timestamp - lastSent.t < 60000) return;
     lastSent = pt; lastSent.t = pos.timestamp;
-    queue.push({ lat: +pt[0].toFixed(6), lon: +pt[1].toFixed(6), acc: Math.round(c.accuracy), speed: c.speed || 0, t: pos.timestamp }); saveQ();
-    live.push(pt); gLive.clearLayers(); if (live.length > 1) L.polyline(live, { color:'#2563eb', weight:3, opacity:0.85 }).addTo(gLive);
-    if (wakeLock || !('wakeLock' in navigator)) setLive(wakeLock ? '● En tournée · écran maintenu allumé' : 'En tournée · pense à garder l’écran allumé', !wakeLock);
+    queue.push({ lat: +pt[0].toFixed(6), lon: +pt[1].toFixed(6), acc: Math.round(c.accuracy), speed: c.speed || 0, t: pos.timestamp }); ls('q', queue.slice(-3000));
+    var tr = ls('trace_' + wk()) || []; tr.push([+pt[0].toFixed(6), +pt[1].toFixed(6)]); ls('trace_' + wk(), tr.slice(-20000));
+    if (Date.now() - lastDraw > 8000 && streets.length) { lastDraw = Date.now(); drawAll(); }
+    else if (!streets.length) { gTrace.clearLayers(); var all = allPoints(); if (all.length > 1) L.polyline(all, { color:'#2563eb', weight:3, opacity:.85 }).addTo(gTrace); }
+    if (wakeLock || !('wakeLock' in navigator)) setLive(wakeLock ? '● En tournée · écran maintenu allumé' : 'En tournée · garde l’écran allumé', !wakeLock);
+    flush(false);
   }
   function start(){
     if (!navigator.geolocation) { alert('La localisation n’est pas disponible sur ce téléphone.'); return; }
@@ -148,77 +399,25 @@
         alert('La localisation est bloquée pour cette page.' + NL + NL + 'iPhone : Réglages > Confidentialité et sécurité > Service de localisation > Sites Safari (ou Safari) > « Lorsque l’app est active », puis recharge la page.' + NL + NL + 'Android : touche le cadenas à côté de l’adresse > Autorisations > Position > Autoriser.'); }
       else setLive('Signal GPS faible…', true);
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
-    keepAwake();
-    try { localStorage.setItem(LS + '_on', '1'); } catch (e) {}
-    var b = document.getElementById('go'); b.textContent = '■ Terminer'; b.className = 'go stop';
+    keepAwake(); ls('on', 1);
+    $('go').textContent = '■ Terminer'; $('go').className = 'go stop';
   }
   function stop(silent){
     if (watchId !== null) navigator.geolocation.clearWatch(watchId); watchId = null;
     if (wakeLock) { wakeLock.release().catch(function(){}); wakeLock = null; }
-    try { localStorage.removeItem(LS + '_on'); } catch (e) {}
-    flush();
-    var b = document.getElementById('go'); b.textContent = '▶ Démarrer ma tournée'; b.className = 'go';
-    if (!silent) setLive('Tournée en pause');
+    lsDel('on'); flush(true);
+    $('go').textContent = '▶ Démarrer ma tournée'; $('go').className = 'go';
+    if (!silent) { setLive('Tournée en pause · positions envoyées'); if (streets.length) drawAll(); }
   }
-  document.getElementById('go').onclick = function(){ if (watchId === null) start(); else if (confirm('Terminer la tournée ?')) stop(); };
-  setInterval(flush, 10000);
-  window.addEventListener('online', flush);
-  var wasOn = false; try { wasOn = localStorage.getItem(LS + '_on') === '1'; } catch (e) {}
-  if (wasOn) { document.getElementById('go').textContent = '▶ Reprendre ma tournée'; }
-  document.getElementById('me').onclick = function(){ follow = true; if (lastPos) map.setView(lastPos, 17); };
+  $('go').onclick = function(){ if (watchId === null) start(); else if (confirm('Terminer la tournée ?')) stop(); };
+  $('me').onclick = function(){ follow = true; if (lastPos) map.setView(lastPos, 17); };
+  setInterval(function(){ flush(false); }, 30000);
+  window.addEventListener('online', function(){ flush(true); });
+  if (ls('on')) $('go').textContent = '▶ Reprendre ma tournée';
 
-  function ago(iso){ if(!iso) return ''; var s=(Date.now()-new Date(iso))/1000; if(s<90) return "à l’instant"; if(s<3600) return 'il y a '+Math.round(s/60)+' min'; if(s<86400) return 'il y a '+Math.round(s/3600)+' h'; return 'il y a '+Math.round(s/86400)+' j'; }
-
-  function draw(d){
-    var tn = d.secteur && d.secteur.name ? d.secteur.name.split(' – ')[0].trim() : '';
-    if (tn) tn = tn.charAt(0) + tn.slice(1).toLowerCase();
-    document.getElementById('who').textContent = tn || d.chauffeur;
-    if (tn) document.title = tn;
-    document.getElementById('dot').className = 'dot' + (d.enLigne ? ' on' : '');
-    document.getElementById('status').textContent = d.chauffeur + ' · ' + d.semaine + ' · ' + (d.enLigne ? 'suivi actif' : 'suivi coupé') + (d.derniereMaj ? ' ' + ago(d.derniereMaj) : '');
-    document.getElementById('pct').textContent = d.pourcentage + ' %';
-    document.getElementById('bar').style.width = d.pourcentage + '%';
-    document.getElementById('cnt').textContent = d.ruesFaites + ' / ' + d.ruesTotal + ' rues';
-    var rest = d.ruesTotal - d.ruesFaites;
-    document.getElementById('rest').textContent = rest ? rest + ' à faire' : 'tout est fait 🎉';
-
-    gSector.clearLayers(); gStreets.clearLayers(); gTrace.clearLayers(); if (watchId === null) gMe.clearLayers();
-    if (d.secteur) L.polygon(d.secteur.coords, { color:'#00c800', weight:4, fillColor:'#00c800', fillOpacity:0.06 }).addTo(gSector);
-    d.rues.forEach(function(r){ r.runs.forEach(function(run){
-      if (run.c.length < 2) return;
-      L.polyline(run.c, { color: run.ok ? '#16a34a' : '#ff2ec4', weight: 8, opacity: 0.95, lineCap:'round' }).bindTooltip(r.name).addTo(gStreets);
-    }); });
-    if (d.trace.length > 1) L.polyline(d.trace, { color:'#2563eb', weight:3, opacity:0.85 }).addTo(gTrace);
-    if (d.position && watchId === null) {
-      lastPos = d.position;
-      L.circleMarker(d.position, { radius:9, color:'#fff', weight:3, fillColor:'#2563eb', fillOpacity:1 }).addTo(gMe);
-    }
-    var ul = document.getElementById('list'); ul.innerHTML = '';
-    d.liste.forEach(function(s){
-      var li = document.createElement('li'); li.className = s.done ? 'done' : (s.part ? 'part' : '');
-      li.innerHTML = '<span class="n"><span class="t"></span><span></span></span><span class="a"></span>';
-      li.querySelector('.n span:last-child').textContent = s.name;
-      li.querySelector('.a').textContent = s.done ? 'fait' : (s.part ? 'en partie' : s.addr + ' adr.');
-      li.onclick = function(){ var b=null; d.rues.forEach(function(r){ if(r.name===s.name) r.runs.forEach(function(run){ run.c.forEach(function(p){ b = b ? b.extend(p) : L.latLngBounds(p,p); }); }); }); if(b){ setOpen(false); map.fitBounds(b.pad(0.4)); } };
-      ul.appendChild(li);
-    });
-    if (first && d.secteur) { map.fitBounds(L.polygon(d.secteur.coords).getBounds(), { padding:[20,20] }); first = false; }
-  }
-
-  function load(){
-    fetch(api, { cache:'no-store' }).then(function(r){
-      if (r.status === 404) throw new Error('lien');
-      if (!r.ok) throw new Error('serveur');
-      return r.json();
-    }).then(function(d){ document.getElementById('msg').style.display='none'; draw(d); })
-    .catch(function(e){
-      if (e.message === 'lien') { var m=document.getElementById('msg'); m.textContent="Ce lien n’est pas valide. Demande ton lien à ton responsable."; m.style.display='flex'; }
-      else document.getElementById('status').textContent = 'Connexion impossible, nouvel essai…';
-    });
-  }
-  flush();
-  if (!key) { var m=document.getElementById('msg'); m.textContent='Lien incomplet. Demande ton lien à ton responsable.'; m.style.display='flex'; }
-  else { load(); setInterval(load, 30000); }
+  // ---- démarrage ----
+  if (!key) msg('Lien incomplet.<br>Demande ton lien à ton responsable.');
+  else { flush(true); loadHome(); }
 })();
 </script>
 </body>
