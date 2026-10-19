@@ -1,0 +1,20 @@
+{
+  "name": "ma-tournee-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App iPhone « Ma tournée » : la page chauffeur embarquée avec GPS en arrière-plan",
+  "scripts": {
+    "www": "bash scripts/build-www.sh",
+    "ios:add": "npx cap add ios",
+    "ios:sync": "npx cap sync ios",
+    "ios:configure": "bash scripts/configure-ios.sh"
+  },
+  "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}

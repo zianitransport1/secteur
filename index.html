@@ -160,7 +160,10 @@
   var API = 'https://ziani1.app.n8n.cloud/webhook/tournee-api';
   var SEND_EVERY = 5 * 60 * 1000;   // envoi des positions au serveur toutes les 5 min (économise les exécutions n8n)
   var R = 25, STEP = 8, DONE = 0.8; // rue faite si le chauffeur est passé à moins de 25 m sur 80 % de sa longueur
-  var key = new URLSearchParams(location.search).get('k') || '';
+  // Dans l'app iPhone (Capacitor), le lien personnel est saisi une fois puis mémorisé sur le téléphone
+  var NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  function savedKey(){ try { return localStorage.getItem('mt_key') || ''; } catch (e) { return ''; } }
+  var key = new URLSearchParams(location.search).get('k') || (NATIVE ? savedKey() : '');
   var NL = String.fromCharCode(10);
   var $ = function(id){ return document.getElementById(id); };
   function ls(k, v){ try { if (v === undefined) return JSON.parse(localStorage.getItem('mt_' + key + '_' + k) || 'null'); localStorage.setItem('mt_' + key + '_' + k, JSON.stringify(v)); } catch (e) { return null; } }
@@ -201,7 +204,10 @@
     msg('<div class="spin"></div>Chargement de tes secteurs…');
     api({ a:'init' }).then(function(d){ data = d; ls('init', d); hideMsg(); renderHome(); show('home'); })
       .catch(function(e){
-        if (e.message === 'lien') return msg('Ce lien n’est pas valide.<br>Demande ton lien à ton responsable.');
+        if (e.message === 'lien') {
+          if (NATIVE) return msg('Ce lien n’est pas valide.<br>Demande ton lien à ton responsable.', 'Saisir un autre lien', askKey);
+          return msg('Ce lien n’est pas valide.<br>Demande ton lien à ton responsable.');
+        }
         var c = ls('init'); if (c) { data = c; hideMsg(); renderHome(); show('home'); return; }
         msg('Pas de connexion internet.', 'Réessayer', loadHome);
       });
@@ -359,7 +365,26 @@
   var watchId = null, wakeLock = null, queue = ls('q') || [], lastSent = null, sending = false, gotFix = false, lastFlush = Date.now(), lastDraw = 0;
   function setLive(t, w){ var el = $('live'); el.textContent = t || ''; el.className = 'live' + (t ? ' on' : '') + (w ? ' warn' : ''); }
   function dist(a, b){ return Math.hypot((a[1]-b[1]) * KX, (a[0]-b[0]) * KY); }
+  // GPS natif de l'app : continue écran verrouillé ou app en arrière-plan
+  var BG = NATIVE && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('BackgroundGeolocation') : null, bgId = null;
+  var LIVE_NATIVE = '● En tournée · tu peux verrouiller l’écran';
+  function startNative(){
+    watchId = 'app';
+    BG.addWatcher({ backgroundTitle: 'Ma tournée', backgroundMessage: 'Suivi de ta tournée en cours', requestPermissions: true, stale: false, distanceFilter: 5 },
+      function(loc, err){
+        if (err) {
+          if (err.code === 'NOT_AUTHORIZED') {
+            stop(true); setLive('Localisation refusée · voir réglages du téléphone', true);
+            if (confirm('La localisation est bloquée pour Ma tournée.' + NL + NL + 'Ouvrir les réglages pour choisir « Lorsque l’app est active » ou « Toujours » ?')) BG.openSettings();
+          } else setLive('Signal GPS faible…', true);
+          return;
+        }
+        if (!loc || watchId === null) return;
+        onPos({ coords: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, speed: loc.speed }, timestamp: loc.time || Date.now() });
+      }).then(function(id){ if (watchId === null) BG.removeWatcher({ id: id }); else bgId = id; });
+  }
   function keepAwake(){
+    if (NATIVE) return;
     if (!('wakeLock' in navigator)) { setLive('En tournée · garde l’écran allumé', true); return; }
     navigator.wakeLock.request('screen').then(function(w){ if (watchId === null) { w.release(); return; } wakeLock = w; if (gotFix) setLive('● En tournée · écran maintenu allumé'); })
       .catch(function(){ if (watchId !== null) setLive('En tournée · garde l’écran allumé', true); });
@@ -388,10 +413,17 @@
     var tr = ls('trace_' + wk()) || []; tr.push([+pt[0].toFixed(6), +pt[1].toFixed(6)]); ls('trace_' + wk(), tr.slice(-20000));
     if (Date.now() - lastDraw > 8000 && streets.length) { lastDraw = Date.now(); drawAll(); }
     else if (!streets.length) { gTrace.clearLayers(); var all = allPoints(); if (all.length > 1) L.polyline(all, { color:'#2563eb', weight:3, opacity:.85 }).addTo(gTrace); }
-    if (wakeLock || !('wakeLock' in navigator)) setLive(wakeLock ? '● En tournée · écran maintenu allumé' : 'En tournée · garde l’écran allumé', !wakeLock);
+    if (NATIVE) setLive(LIVE_NATIVE);
+    else if (wakeLock || !('wakeLock' in navigator)) setLive(wakeLock ? '● En tournée · écran maintenu allumé' : 'En tournée · garde l’écran allumé', !wakeLock);
     flush(false);
   }
   function start(){
+    if (BG) {
+      setLive('Recherche du GPS…'); gotFix = false; follow = true;
+      startNative(); ls('on', 1);
+      $('go').textContent = '■ Terminer'; $('go').className = 'go stop';
+      return;
+    }
     if (!navigator.geolocation) { alert('La localisation n’est pas disponible sur ce téléphone.'); return; }
     setLive('Recherche du GPS…'); gotFix = false; follow = true;
     watchId = navigator.geolocation.watchPosition(onPos, function(err){
@@ -403,7 +435,9 @@
     $('go').textContent = '■ Terminer'; $('go').className = 'go stop';
   }
   function stop(silent){
-    if (watchId !== null) navigator.geolocation.clearWatch(watchId); watchId = null;
+    if (BG) { if (bgId !== null) BG.removeWatcher({ id: bgId }); bgId = null; }
+    else if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
     if (wakeLock) { wakeLock.release().catch(function(){}); wakeLock = null; }
     lsDel('on'); flush(true);
     $('go').textContent = '▶ Démarrer ma tournée'; $('go').className = 'go';
@@ -416,7 +450,22 @@
   if (ls('on')) $('go').textContent = '▶ Reprendre ma tournée';
 
   // ---- démarrage ----
-  if (!key) msg('Lien incomplet.<br>Demande ton lien à ton responsable.');
+  // Saisie du lien personnel (app uniquement) : on accepte le lien complet ou juste la clé
+  function askKey(){
+    msg('<b style="font-size:18px">Bienvenue 👋</b><br>Colle ici le lien personnel envoyé par ton responsable.' +
+      '<input id="kIn" type="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://…/secteur/?k=…" ' +
+      'style="display:block;width:100%;margin:14px 0 4px;padding:14px;border:1px solid #cbd5e1;border-radius:12px;font-size:16px;color:#0f172a">',
+      'Valider', function(){
+        var v = (($('kIn') || {}).value || '').trim(), m = v.match(/[?&]k=([^&#\s]+)/);
+        var k = m ? decodeURIComponent(m[1]) : (/^[\w-]{4,}$/.test(v) ? v : '');
+        if (!k) { alert('Lien non reconnu. Copie le lien complet reçu par message.'); return; }
+        try { localStorage.setItem('mt_key', k); } catch (e) {}
+        location.reload();
+      });
+  }
+
+  if (!key && NATIVE) askKey();
+  else if (!key) msg('Lien incomplet.<br>Demande ton lien à ton responsable.');
   else { flush(true); loadHome(); }
 })();
 </script>
