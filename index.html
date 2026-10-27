@@ -269,7 +269,7 @@
     // Fonds de carte : plan clair (maisons visibles en zoomant) ou satellite (photo aérienne + noms de rues)
     var ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
     FONDS = {
-      plan: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20, subdomains: 'abcd', attribution: '© OpenStreetMap © CARTO' }),
+      plan: L.tileLayer(ESRI + 'World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, attribution: 'Tiles © Esri' }),
       sat: L.layerGroup([
         L.tileLayer(ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, attribution: 'Imagerie © Esri' }),
         L.tileLayer(ESRI + 'Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19 }),
