@@ -76,19 +76,17 @@ jobs:
           mkdir -p "$RUNNER_TEMP/keys"
           printf '%s\n' "$P8" > "$RUNNER_TEMP/keys/AuthKey_$KID.p8"
 
-      - name: Compiler et signer (archive)
+      # Archive non signée : la signature App Store est faite à l'étape suivante (export),
+      # ce qui évite d'avoir besoin d'un iPhone enregistré pour un profil de développement.
+      - name: Compiler (archive)
         env:
           TEAM: ${{ secrets.APPLE_TEAM_ID }}
-          KID: ${{ secrets.ASC_KEY_ID }}
-          ISS: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set -o pipefail
           xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$KID.p8" \
-            -authenticationKeyID "$KID" -authenticationKeyIssuerID "$ISS" \
-            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$TEAM" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             MARKETING_VERSION="${{ inputs.version }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
