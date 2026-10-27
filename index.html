@@ -159,7 +159,7 @@
     </div>
     <div class="live" id="live"></div>
     <div class="bar"><i id="bar"></i></div>
-    <div class="legend"><span><b style="background:var(--pink)"></b>À faire</span><span><b style="background:var(--green)"></b>Fait</span><span><b style="background:var(--blue)"></b>Mon trajet</span><span><b style="background:var(--sector)"></b>Secteur</span></div>
+    <div class="legend"><span><b style="background:var(--pink)"></b>À faire</span><span><b style="background:var(--green)"></b>Fait</span><span><b style="background:var(--sector)"></b>Secteur</span></div>
   </div>
   <div class="sheet closed" id="sheet">
     <div class="grab" id="grab"><div class="handle"></div>
@@ -434,7 +434,7 @@
     return tot ? Math.round(done / tot * 100) : 0;
   }
   function drawTrace(){
-    gTrace.clearLayers();
+    gTrace.clearLayers(); return;   // trajet bleu masqué : seules les rues passent du rose au vert
     var pts = allPoints(); if (pts.length > 1) L.polyline(pts.map(function(p){ return [p[0], p[1]]; }), { pane: 'pTrace', color:'#2563eb', weight:3, opacity:.85 }).addTo(gTrace);
   }
   function drawAll(){
