@@ -11,9 +11,9 @@ set_key() { # set_key <clé> <type> <valeur>
   $PB -c "Add :$1 $2 $3" "$PLIST"
 }
 
-set_key CFBundleDisplayName string "Ma tournée"
+set_key CFBundleDisplayName string "Ziani Transport"
 set_key NSLocationWhenInUseUsageDescription string "Ta position sert à tracer ta tournée sur la carte et à indiquer les rues déjà faites."
-set_key NSLocationAlwaysAndWhenInUseUsageDescription string "Ta position continue d'être suivie pendant la tournée, même écran verrouillé, pour que les rues faites soient bien comptées."
+set_key NSLocationAlwaysAndWhenInUseUsageDescription string "Ta position continue d’être suivie pendant la tournée, même écran verrouillé, pour que les rues faites soient bien comptées."
 set_key ITSAppUsesNonExemptEncryption bool false
 $PB -c "Delete :UIBackgroundModes" "$PLIST" 2>/dev/null || true
 $PB -c "Add :UIBackgroundModes array" "$PLIST"

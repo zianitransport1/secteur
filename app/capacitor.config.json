@@ -1,6 +1,6 @@
 {
   "appId": "com.zianitransport.matournee",
-  "appName": "Ma tournée",
+  "appName": "Ziani Transport",
   "webDir": "www",
   "ios": {
     "contentInset": "never",

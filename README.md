@@ -3,7 +3,7 @@
 Page chauffeur : carte du secteur, rues à faire / faites, suivi GPS.
 Lien personnel : `https://zianitransport1.github.io/secteur/?k=CLE_DU_CHAUFFEUR`
 
-## App iPhone (TestFlight)
+## App iPhone « Ziani Transport » (TestFlight)
 
 Le dossier `app/` transforme cette même page en app iPhone. Différences avec la page web :
 - le GPS continue **écran verrouillé** (plus besoin de garder l'écran allumé) ;
@@ -13,7 +13,7 @@ La page web continue de fonctionner comme avant.
 
 ### Mise en place (une seule fois)
 
-1. **App Store Connect** > Apps > « + » > Nouvelle app : plateforme iOS, nom « Ma tournée »,
+1. **App Store Connect** > Apps > « + » > Nouvelle app : plateforme iOS, nom « Ziani Transport »,
    identifiant de lot `com.zianitransport.matournee` (s'il n'apparaît pas dans la liste, le créer dans
    developer.apple.com > Certificates, IDs & Profiles > Identifiers), SKU : `matournee`.
 2. **App Store Connect** > Utilisateurs et accès > Intégrations > Clés d'API App Store Connect :
