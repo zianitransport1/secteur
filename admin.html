@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="robots" content="noindex">
+<title>Suivi des tournées</title>
+<link rel="icon" href="icon-192.png">
+<style>
+  :root{--bg:#0f172a;--card:#fff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--green:#16a34a;--amber:#d97706;--red:#dc2626;--blue:#2563eb;--soft:#f1f5f9}
+  *{box-sizing:border-box}
+  html,body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--soft);color:var(--ink)}
+  button,input,select{font-family:inherit;font-size:15px}
+  header{background:var(--bg);color:#fff;padding:calc(16px + env(safe-area-inset-top)) 16px 18px;position:sticky;top:0;z-index:5}
+  header .in{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  header h1{margin:0;font-size:22px;font-weight:800;flex:1;min-width:200px}
+  header h1 small{display:block;font-size:13px;font-weight:500;color:#94a3b8;margin-top:3px}
+  .live{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#94a3b8}
+  .live i{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:pu 2s infinite}
+  .live.err i{background:var(--amber);animation:none}
+  @keyframes pu{70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+  main{max-width:1100px;margin:0 auto;padding:16px 16px 40px}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  .tile{background:var(--card);border-radius:14px;padding:12px 14px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+  .tile b{display:block;font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+  .tile span{font-size:13px;color:var(--mut)}
+  .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .seg{display:flex;background:#e2e8f0;border-radius:12px;padding:3px;flex-wrap:wrap}
+  .seg button{border:0;background:none;padding:8px 12px;border-radius:9px;font-weight:600;color:var(--mut);cursor:pointer}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .tools input,.tools select{border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:#fff;min-width:0}
+  .tools input{flex:1;min-width:160px}
+  h2{font-size:16px;margin:22px 0 10px}
+  .list{display:flex;flex-direction:column;gap:8px}
+  .row{background:var(--card);border-radius:14px;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1.1fr) minmax(0,1.6fr) 96px;gap:12px;align-items:center;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+  .row .n b{display:block;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .n small,.row .c small{color:var(--mut);font-size:12px}
+  .row .c{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar{height:10px;border-radius:99px;background:#eef2f7;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:99px;transition:width .6s}
+  .p{display:flex;align-items:center;gap:10px}
+  .p .bar{flex:1}
+  .p b{font-variant-numeric:tabular-nums;min-width:46px;text-align:right;font-size:16px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;white-space:nowrap}
+  .t-clos{background:#dcfce7;color:#166534}.t-cours{background:#dbeafe;color:#1e40af}.t-pause{background:#fef3c7;color:#92400e}
+  .t-rouvert{background:#ede9fe;color:#5b21b6}.t-pas{background:#f1f5f9;color:var(--mut)}.t-bonus{background:#fef9c3;color:#854d0e;margin-left:4px}
+  .act{display:flex;gap:6px;align-items:center;justify-content:flex-end}
+  .btn{border:0;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer;background:var(--soft);color:var(--ink)}
+  .btn.blue{background:var(--blue);color:#fff}
+  .btn[disabled]{opacity:.5}
+  .drivers{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+  .drv{background:var(--card);border-radius:12px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+  .drv span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sw{position:relative;width:46px;height:28px;flex:none}
+  .sw input{opacity:0;width:0;height:0}
+  .sw i{position:absolute;inset:0;background:#cbd5e1;border-radius:99px;transition:.2s;cursor:pointer}
+  .sw i:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .sw input:checked + i{background:var(--green)}
+  .sw input:checked + i:before{transform:translateX(18px)}
+  .hint{font-size:13px;color:var(--mut);margin:-4px 0 10px}
+  .empty{background:#fff;border-radius:14px;padding:22px;text-align:center;color:var(--mut)}
+  .login{max-width:380px;margin:12vh auto;background:#fff;border-radius:18px;padding:24px;box-shadow:0 10px 30px rgba(15,23,42,.1)}
+  .login h1{margin:0 0 8px;font-size:22px}
+  .login input{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px;margin:12px 0}
+  .login .btn{width:100%;padding:13px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--bg);color:#fff;padding:11px 16px;border-radius:12px;font-size:14px;opacity:0;transition:.3s;pointer-events:none;z-index:20}
+  .toast.on{opacity:1}
+  @media (max-width:760px){
+    .tiles{grid-template-columns:repeat(2,1fr)}
+    .row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n act" "c c" "p p";gap:8px}
+    .row .n{grid-area:n}.row .c{grid-area:c}.row .p{grid-area:p}.row .act{grid-area:act}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+<script>
+(function(){
+  'use strict';
+  var API = 'https://ziani1.app.n8n.cloud/webhook/tournee-suivi';
+  var PAYE = 90, B10 = 95, B15 = 98;
+  var $app = document.getElementById('app');
+  function store(k, v){ try { if (v === undefined) return localStorage.getItem('adm_' + k); if (v === null) localStorage.removeItem('adm_' + k); else localStorage.setItem('adm_' + k, v); } catch (e) { return null; } }
+  var tok = new URLSearchParams(location.search).get('t') || store('t') || '';
+  if (new URLSearchParams(location.search).get('t')) { store('t', tok); history.replaceState(null, '', location.pathname); }
+  var data = null, filtre = store('f') || 'tous', st = store('st') || '', q = '', timer = null, busy = false;
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+  function toast(t){ var e = document.getElementById('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(function(){ e.classList.remove('on'); }, 2600); }
+  function call(body){
+    body.t = tok;
+    return fetch(API, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify(body), cache:'no-store' })
+      .then(function(r){ if (r.status === 403) throw new Error('code'); if (!r.ok) throw new Error('serveur'); return r.json(); });
+  }
+  function login(err){
+    $app.innerHTML = '<div class="login"><h1>Suivi des tournées</h1><div class="hint">Accès réservé · entre ton code administrateur.</div>' +
+      (err ? '<div class="tag t-pause" style="margin-top:8px">Code incorrect</div>' : '') +
+      '<input id="code" type="password" autocomplete="current-password" placeholder="Code administrateur"><button class="btn blue" id="go">Entrer</button></div>';
+    var go = function(){ tok = document.getElementById('code').value.trim(); if (!tok) return; store('t', tok); load(true); };
+    document.getElementById('go').onclick = go;
+    document.getElementById('code').onkeydown = function(e){ if (e.key === 'Enter') go(); };
+  }
+  function ago(iso){
+    if (!iso) return ''; var m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+    if (m < 1) return 'à l’instant'; if (m < 60) return 'il y a ' + m + ' min'; var h = Math.floor(m / 60);
+    if (h < 24) return 'il y a ' + h + ' h ' + (m % 60 ? (m % 60) + ' min' : ''); return 'il y a ' + Math.floor(h / 24) + ' j';
+  }
+  function couleur(p){ return p == null ? '#cbd5e1' : (p < PAYE ? 'var(--red)' : (p < B10 ? 'var(--amber)' : 'var(--green)')); }
+  var ETATS = { 'clos': ['Clôturé', 't-clos'], 'en cours': ['En cours', 't-cours'], 'pause': ['En pause', 't-pause'], 'rouvert': ['Rouvert', 't-rouvert'], 'pas commencé': ['Pas commencé', 't-pas'] };
+  function shell(){
+    if (document.getElementById('list')) return;
+    $app.innerHTML = '<header><div class="in"><h1>Suivi des tournées <small id="sub"></small></h1><span class="live" id="live"><i></i><span id="liveT">En direct</span></span>' +
+      '<button class="btn" id="refresh">↻ Actualiser</button></div></header><main>' +
+      '<div class="tiles" id="tiles"></div>' +
+      '<div class="tools"><div class="seg" id="seg"></div><select id="st"></select><input id="q" type="search" placeholder="Chercher un secteur ou un chauffeur"></div>' +
+      '<div class="list" id="list"></div>' +
+      '<h2>Bonus de couverture</h2><div class="hint">Activé = le chauffeur voit les seuils 95 % (bonus 10 %) et 98 % (bonus 15 %) en clôturant. Le paiement à 90 % s’applique à tout le monde.</div>' +
+      '<div class="drivers" id="drivers"></div></main>';
+    document.getElementById('refresh').onclick = function(){ load(); };
+    document.getElementById('q').oninput = function(e){ q = e.target.value.toLowerCase(); renderList(); };
+    document.getElementById('st').onchange = function(e){ st = e.target.value; store('st', st); renderList(); };
+  }
+  function render(){
+    shell();
+    document.getElementById('sub').textContent = 'Semaine ' + data.semaine + ' · ' + data.annee + ' · mis à jour ' + new Date(data.maj).toLocaleTimeString('fr-BE', { hour:'2-digit', minute:'2-digit' });
+    var S = data.secteurs, n = S.length, clos = S.filter(function(s){ return s.etat === 'clos'; }).length,
+        actifs = S.filter(function(s){ return s.etat === 'en cours' || s.etat === 'rouvert'; }).length,
+        withP = S.filter(function(s){ return s.pct != null; }), moy = withP.length ? Math.round(withP.reduce(function(a, s){ return a + s.pct; }, 0) / withP.length) : null;
+    document.getElementById('tiles').innerHTML =
+      '<div class="tile"><b>' + n + '</b><span>secteurs cette semaine</span></div>' +
+      '<div class="tile"><b style="color:var(--blue)">' + actifs + '</b><span>en cours maintenant</span></div>' +
+      '<div class="tile"><b style="color:var(--green)">' + clos + '</b><span>clôturés</span></div>' +
+      '<div class="tile"><b>' + (moy == null ? '–' : moy + ' %') + '</b><span>avancement moyen</span></div>';
+    var sts = {}; S.forEach(function(s){ if (s.sousTraitant) sts[s.sousTraitant] = 1; });
+    document.getElementById('st').innerHTML = '<option value="">Tous les sous-traitants</option>' + Object.keys(sts).sort().map(function(k){ return '<option' + (k === st ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('');
+    var F = [['tous', 'Tous'], ['actifs', 'En cours'], ['clos', 'Clôturés'], ['pas', 'Pas commencés']];
+    document.getElementById('seg').innerHTML = F.map(function(f){ return '<button data-f="' + f[0] + '" class="' + (filtre === f[0] ? 'on' : '') + '">' + f[1] + '</button>'; }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('#seg button'), function(b){ b.onclick = function(){ filtre = b.dataset.f; store('f', filtre); render(); }; });
+    renderList();
+    document.getElementById('drivers').innerHTML = data.chauffeurs.filter(function(c){ return !/^test /i.test(c.nom); }).map(function(c){
+      return '<label class="drv"><span>' + esc(c.nom) + '</span><span class="sw"><input type="checkbox" data-id="' + c.id + '"' + (c.bonus ? ' checked' : '') + '><i></i></span></label>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('#drivers input'), function(i){ i.onchange = function(){ setBonus(i); }; });
+  }
+  function renderList(){
+    var ordre = { 'en cours': 0, 'rouvert': 1, 'pause': 2, 'pas commencé': 3, 'clos': 4 };
+    var L = data.secteurs.filter(function(s){
+      if (st && s.sousTraitant !== st) return false;
+      if (filtre === 'actifs' && !(s.etat === 'en cours' || s.etat === 'pause' || s.etat === 'rouvert')) return false;
+      if (filtre === 'clos' && s.etat !== 'clos') return false;
+      if (filtre === 'pas' && s.etat !== 'pas commencé') return false;
+      if (q && (s.nom + ' ' + s.chauffeur).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    }).sort(function(a, b){ return (ordre[a.etat] - ordre[b.etat]) || ((b.pct || 0) - (a.pct || 0)) || a.nom.localeCompare(b.nom); });
+    var el = document.getElementById('list');
+    if (!L.length) { el.innerHTML = '<div class="empty">Aucun secteur pour ce filtre.</div>'; return; }
+    el.innerHTML = L.map(function(s){
+      var e = ETATS[s.etat] || [s.etat, 't-pas'], p = s.pct;
+      return '<div class="row"><div class="n"><b>' + esc(s.nom) + (s.remplacement ? ' <span class="tag t-pause">Remplacement</span>' : '') + '</b><small>' + esc(s.sousTraitant || '') + (s.kml ? '' : (s.sousTraitant ? ' · ' : '') + 'pas de carte') + '</small></div>' +
+        '<div class="c">' + esc(s.chauffeur) + (s.bonus ? '<span class="tag t-bonus">Bonus</span>' : '') + '<br><small>' + (s.maj ? ago(s.maj) : '') + '</small></div>' +
+        '<div class="p"><span class="tag ' + e[1] + '">' + e[0] + '</span><div class="bar"><i style="width:' + (p || 0) + '%;background:' + couleur(p) + '"></i></div><b style="color:' + couleur(p) + '">' + (p == null ? '–' : p + ' %') + '</b></div>' +
+        '<div class="act">' + (s.etat === 'clos' ? '<button class="btn blue" data-cle="' + esc(s.cle) + '" data-nom="' + esc(s.nom) + '" data-ch="' + esc(s.chauffeur) + '">Rouvrir</button>' : '') + '</div></div>';
+    }).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('button[data-cle]'), function(b){ b.onclick = function(){ rouvrir(b); }; });
+  }
+  function rouvrir(b){
+    if (!confirm('Rouvrir « ' + b.dataset.nom + ' » pour ' + b.dataset.ch + ' ?\nLe chauffeur pourra à nouveau ouvrir le secteur et continuer sa tournée.')) return;
+    b.disabled = true;
+    call({ a:'rouvrir', cle: b.dataset.cle }).then(function(){ toast('Secteur rouvert pour ' + b.dataset.ch); load(); })
+      .catch(function(){ b.disabled = false; toast('Échec, réessaie'); });
+  }
+  function setBonus(i){
+    var on = i.checked; i.disabled = true;
+    call({ a:'bonus', chauffeurId: i.dataset.id, on: on }).then(function(){
+      data.chauffeurs.forEach(function(c){ if (c.id === i.dataset.id) c.bonus = on; });
+      data.secteurs.forEach(function(s){ if (s.chauffeurId === i.dataset.id) s.bonus = on; });
+      renderList(); toast('Bonus ' + (on ? 'activé' : 'désactivé') + ' · aussi mis à jour dans Notion');
+    }).catch(function(){ i.checked = !on; toast('Échec, réessaie'); }).then(function(){ i.disabled = false; });
+  }
+  function load(first){
+    if (!tok) return login();
+    if (busy) return; busy = true;
+    if (first || !data) $app.innerHTML = '<div class="login" style="text-align:center">Chargement…</div>';
+    call({ a:'admin' }).then(function(d){ data = d; render(); var l = document.getElementById('live'); l.className = 'live'; document.getElementById('liveT').textContent = 'En direct · actualisé toutes les 30 s'; })
+      .catch(function(e){
+        if (e.message === 'code') { store('t', null); tok = ''; return login(true); }
+        if (!data) { $app.innerHTML = '<div class="login" style="text-align:center">Pas de connexion au serveur.<br><br><button class="btn blue" id="re">Réessayer</button></div>'; document.getElementById('re').onclick = function(){ load(true); }; }
+        else { var l = document.getElementById('live'); l.className = 'live err'; document.getElementById('liveT').textContent = 'Connexion perdue · nouvel essai…'; }
+      }).then(function(){ busy = false; });
+  }
+  load(true);
+  timer = setInterval(function(){ if (data && !document.hidden) load(); }, 30000);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden && data) load(); });
+})();
+</script>
+</body>
+</html>

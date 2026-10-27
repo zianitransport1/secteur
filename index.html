@@ -39,6 +39,9 @@
   .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;margin-left:6px;vertical-align:2px}
   .tag.rep{background:#fef3c7;color:#92400e}
   .tag.ok{background:#dcfce7;color:#166534}
+  .tag.done{background:#16a34a;color:#fff}
+  .card.locked{opacity:.75;background:#f8fafc}
+  .card.locked .ic{background:#dcfce7}
   .empty{background:var(--card);border-radius:16px;padding:22px;text-align:center;color:var(--mut)}
 
   /* ---- Rappel code QR ---- */
@@ -198,6 +201,32 @@
   function show(id){ ['home','qr','mapScreen'].forEach(function(s){ $(s).classList.toggle('on', s === id); }); if (id === 'mapScreen' && map) setTimeout(function(){ map.invalidateSize(); }, 50); }
   function msg(html, btn, fn){ var m = $('msg'); m.innerHTML = html; if (btn) { var b = document.createElement('button'); b.textContent = btn; b.onclick = fn; m.appendChild(b); } m.classList.add('on'); }
   function hideMsg(){ $('msg').classList.remove('on'); }
+  // Suivi en direct (avancement, pause, clôture) : serveur séparé, géré par l'admin
+  var SUIVI = 'https://ziani1.app.n8n.cloud/webhook/tournee-suivi';
+  function suivi(body){
+    body.k = key;
+    return fetch(SUIVI, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify(body), cache:'no-store' })
+      .then(function(r){ if (!r.ok) throw new Error('serveur'); return r.json(); });
+  }
+  var etatsSrv = ls('etats') || {};   // { idSecteur: { etat: 'clos' | 'rouvert' | 'en cours' | 'pause', pct } }
+  function setEtats(d){ var m = {}; ((d && d.etats) || []).forEach(function(e){ m[e.s] = e; }); etatsSrv = m; ls('etats', m); }
+  function clos(id){
+    var e = etatsSrv[id];
+    if (e && e.etat === 'rouvert') { lsDel('clos_' + wk() + '_' + id); return null; }
+    if (e && e.etat === 'clos') return e.pct;
+    var l = ls('clos_' + wk() + '_' + id); return l == null ? null : l;
+  }
+  // envois en attente (clôture faite sans réseau) : renvoyés dès que possible
+  function sendSuivi(body, sur){
+    var q = ls('pend') || [];
+    return suivi(JSON.parse(JSON.stringify(body))).then(function(d){ setEtats(d); return d; }).catch(function(){
+      if (sur) { q.push(body); ls('pend', q.slice(-20)); } });
+  }
+  function flushPend(){
+    var q = ls('pend') || []; if (!q.length) return;
+    lsDel('pend'); q.forEach(function(b){ sendSuivi(b, true); });
+  }
+  function refreshEtats(){ return suivi({ a:'prog' }).then(function(d){ setEtats(d); if ($('home').classList.contains('on') && data) renderHome(); }).catch(function(){}); }
   function api(body){
     body.k = key;
     return fetch(API, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify(body), cache:'no-store' })
@@ -215,21 +244,25 @@
     if (!data.secteurs.length) { box.innerHTML = '<div class="empty">Aucun secteur ne t’est attribué cette semaine.<br>Demande à ton responsable.</div>'; return; }
     data.secteurs.forEach(function(s){
       var b = document.createElement('button'); b.className = 'card';
-      var p = ls('pct_' + wk() + '_' + s.id);
+      var p = ls('pct_' + wk() + '_' + s.id), cp = clos(s.id);
       b.innerHTML = '<span class="ic">📍</span><span class="tx"><b></b><small></small></span><span class="pc"></span>';
       b.querySelector('b').textContent = s.nom;
       if (s.remplacement) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag rep">Remplacement</span>');
-      if (ls('clos_' + wk() + '_' + s.id) != null) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag ok">Clôturé</span>');
+      if (cp != null) { b.className = 'card locked'; b.querySelector('.ic').textContent = '✅'; b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag done">Clôturé</span>'); if (cp >= 0) p = cp; }
       else if (ls('scan_' + wk() + '_' + s.id)) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag ok">QR scanné</span>');
       b.querySelector('small').textContent = (s.boites ? s.boites + ' boîtes' : 'Pas de bon BD Media cette semaine') + (s.kml ? '' : ' · carte pas encore disponible');
       b.querySelector('.pc').textContent = p != null ? p + ' %' : '›';
-      b.onclick = function(){ openQr(s); };
+      b.onclick = function(){
+        var c = clos(s.id);
+        if (c != null) { msg('✅ <b>' + s.nom.replace(/</g, '') + '</b> est clôturé' + (c >= 0 ? ' à ' + c + ' %' : '') + '.<br><br>Pour le rouvrir, demande à ton responsable.', 'OK', hideMsg); return; }
+        openQr(s);
+      };
       box.appendChild(b);
     });
   }
   function loadHome(){
     msg('<div class="spin"></div>Chargement de tes secteurs…');
-    api({ a:'init' }).then(function(d){ data = d; ls('init', d); hideMsg(); renderHome(); show('home'); })
+    api({ a:'init' }).then(function(d){ data = d; ls('init', d); hideMsg(); renderHome(); show('home'); flushPend(); refreshEtats(); })
       .catch(function(e){
         if (e.message === 'lien') {
           if (NATIVE) return msg('Ce lien n’est pas valide.<br>Demande ton lien à ton responsable.', 'Saisir un autre lien', askKey);
@@ -281,11 +314,20 @@
     map.createPane('pTodo').style.zIndex = 410;
     map.createPane('pTrace').style.zIndex = 420;
     map.createPane('pDone').style.zIndex = 430;
+    map.createPane('pHi').style.zIndex = 450;
     map.createPane('pMe').style.zIndex = 640;
-    gSector = L.layerGroup().addTo(map); gStreets = L.layerGroup().addTo(map); gTrace = L.layerGroup().addTo(map); gMe = L.layerGroup().addTo(map);
+    gSector = L.layerGroup().addTo(map); gStreets = L.layerGroup().addTo(map); gTrace = L.layerGroup().addTo(map); gMe = L.layerGroup().addTo(map); gHi = L.layerGroup().addTo(map);
     map.on('dragstart', function(){ follow = false; if (navOn) setNav(false); });
   }
-  var FONDS = null, fond = null;
+  var FONDS = null, fond = null, gHi = null, hiTimer = null;
+  // rue touchée dans la liste : surlignée en jaune quelques secondes
+  function highlight(name){
+    if (!gHi) return; gHi.clearLayers(); clearTimeout(hiTimer);
+    streets.forEach(function(s){ if (s.name === name) {
+      L.polyline(s.ll, { pane: 'pHi', color: '#111827', weight: 18, opacity: .35, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(gHi);
+      L.polyline(s.ll, { pane: 'pHi', color: '#facc15', weight: 13, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(gHi); } });
+    hiTimer = setTimeout(function(){ gHi.clearLayers(); }, 4500);
+  }
   function setFond(f){
     if (fond && FONDS[fond]) map.removeLayer(FONDS[fond]);
     fond = f; FONDS[f].addTo(map); ls('fond', f);
@@ -417,10 +459,11 @@
       li.innerHTML = '<span class="n"><span class="t"></span><span></span></span><span class="a"></span>';
       li.querySelector('.n span:last-child').textContent = b.name;
       li.querySelector('.a').textContent = b.done ? 'fait' : (b.part ? 'en partie' : (b.addr ? b.addr + ' adr.' : ''));
-      li.onclick = function(){ var bb = null; streets.forEach(function(s){ if (s.name === b.name) s.ll.forEach(function(p){ bb = bb ? bb.extend(p) : L.latLngBounds(p, p); }); }); if (bb) { setOpen(false); follow = false; map.fitBounds(bb.pad(0.4)); } };
+      li.onclick = function(){ var bb = null; streets.forEach(function(s){ if (s.name === b.name) s.ll.forEach(function(p){ bb = bb ? bb.extend(p) : L.latLngBounds(p, p); }); }); if (bb) { setOpen(false); follow = false; if (navOn) setNav(false); map.fitBounds(bb.pad(0.4)); highlight(b.name); } };
       ul.appendChild(li);
     });
     if (cur) { ls('pct_' + wk() + '_' + cur.id, pct); }
+    if (cur && watchId !== null && pct !== lastProgPct && Date.now() - lastProg > 90000) sendProg('en cours');
   }
   function openMap(s){
     initMap(); show('mapScreen');
@@ -515,7 +558,14 @@
     else if (wakeLock || !('wakeLock' in navigator)) setLive(wakeLock ? '● En tournée · écran maintenu allumé' : 'En tournée · garde l’écran allumé', !wakeLock);
     flush(false);
   }
+  var lastProg = 0, lastProgPct = -1;
+  function sendProg(etat, sur){
+    if (!cur) return Promise.resolve();
+    var pct = streets.length ? compute() : 0; lastProg = Date.now(); lastProgPct = pct;
+    return sendSuivi({ a:'prog', s: cur.id, nom: cur.nom, pct: pct, etat: etat }, sur);
+  }
   function start(){
+    sendProg('en cours');
     if (BG) {
       setLive('Recherche du GPS…'); gotFix = false; follow = true;
       startNative(); ls('on', 1); paused = false; lsDel('pause'); setCtrl('run');
@@ -550,7 +600,7 @@
   }
   $('pause').onclick = function(){
     if (paused) { start(); return; }
-    stop(true); paused = true; ls('pause', 1); setCtrl('paused');
+    stop(true); paused = true; ls('pause', 1); setCtrl('paused'); sendProg('pause');
     setLive('⏸ Secteur en pause · appuie sur Reprendre pour continuer', true);
     if (streets.length) drawAll();
   };
@@ -583,13 +633,15 @@
     $('cloture').classList.remove('on');
     var pct = streets.length ? compute() : null;
     stop(true); paused = false; lsDel('pause'); lsDel('on'); setCtrl('idle');
-    if (cur) ls('clos_' + wk() + '_' + cur.id, pct == null ? -1 : pct);
-    setLive('✅ Secteur clôturé' + (pct == null ? '' : ' à ' + pct + ' %') + ' · positions envoyées');
-    if (streets.length) drawAll();
+    if (cur) { ls('clos_' + wk() + '_' + cur.id, pct == null ? -1 : pct); etatsSrv[cur.id] = { s: cur.id, etat: 'clos', pct: pct == null ? -1 : pct }; ls('etats', etatsSrv); }
+    sendProg('clos', true);
+    setLive(''); if (navOn) setNav(false);
+    renderHome(); show('home');
   };
   $('me').onclick = function(){ follow = true; if (lastPos) map.setView(lastPos, navOn ? 18 : 17); };
   setInterval(function(){ flush(false); }, 30000);
-  window.addEventListener('online', function(){ flush(true); });
+  window.addEventListener('online', function(){ flush(true); flushPend(); });
+  setInterval(function(){ flushPend(); if ($('home').classList.contains('on')) refreshEtats(); }, 60000);
   setCtrl('idle');
 
   // ---- démarrage ----

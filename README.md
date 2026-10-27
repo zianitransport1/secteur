@@ -33,3 +33,10 @@ puis la version apparaît dans TestFlight après le traitement Apple (15-30 min)
 App Store Connect > l'app > TestFlight : créer un groupe de testeurs **externes** et activer le **lien public**,
 ou ajouter des testeurs internes. Le chauffeur installe « TestFlight » depuis l'App Store puis ouvre le lien.
 Une version TestFlight expire après 90 jours : relancer le workflow pour en publier une nouvelle.
+
+## Page admin
+
+`https://zianitransport1.github.io/secteur/admin.html` : avancement en direct de tous les secteurs de la semaine,
+bonus par chauffeur (synchronisé avec la case « Bonus couverture » de Notion) et réouverture d'un secteur clôturé.
+Protégée par un code administrateur (demandé à la première ouverture, puis mémorisé sur l'appareil).
+Serveur : workflow n8n « Ma tournée — Suivi en direct & admin » (webhook `tournee-suivi`), table « Avancement tournées ».
