@@ -56,7 +56,9 @@
   .big.grey{background:#334155;box-shadow:none}
 
   /* ---- Carte ---- */
-  #map{position:fixed;inset:0}
+  #mapRot{position:fixed;left:50%;top:50%;width:100vw;height:100vh;transform:translate(-50%,-50%) rotate(0deg);transition:transform .45s ease-out}
+  #map{position:absolute;inset:0;background:#e5e7eb}
+  .meArrow{width:30px;height:30px;transition:transform .45s ease-out}
   .top{position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));z-index:500;background:var(--card);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:10px 14px 12px}
   .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .menu{border:0;background:#f1f5f9;border-radius:10px;width:38px;height:38px;font-size:18px;flex:none}
@@ -87,11 +89,25 @@
   .sheet li .a{font-size:12px;color:var(--mut)}
   .btn{position:fixed;right:12px;z-index:500;width:44px;height:44px;border-radius:14px;border:0;background:var(--card);box-shadow:0 4px 14px rgba(0,0,0,.2);font-size:20px}
   #me{bottom:calc(45vh + 12px)} .sheet.closed ~ #me{bottom:calc(72px + env(safe-area-inset-bottom))}
+  #nav{bottom:calc(45vh + 116px)} .sheet.closed ~ #nav{bottom:calc(176px + env(safe-area-inset-bottom))}
+  #fond{bottom:calc(45vh + 168px);font-size:19px} .sheet.closed ~ #fond{bottom:calc(228px + env(safe-area-inset-bottom))}
+  #nav.on{background:var(--blue);color:#fff}
   #qrbtn{bottom:calc(45vh + 64px);font-size:13px;font-weight:800} .sheet.closed ~ #qrbtn{bottom:calc(124px + env(safe-area-inset-bottom))}
-  .go{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom));z-index:600;border:0;border-radius:99px;
-      padding:15px 26px;font-size:17px;font-weight:800;color:#fff;background:var(--green);box-shadow:0 8px 24px rgba(22,163,74,.45);white-space:nowrap}
-  .go.stop{background:var(--bg);box-shadow:0 8px 24px rgba(0,0,0,.35);padding:11px 20px;font-size:15px}
-  .sheet:not(.closed) ~ .go{display:none}
+  .ctrl{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom));z-index:600;display:flex;gap:10px;white-space:nowrap}
+  .go{border:0;border-radius:99px;padding:15px 26px;font-size:17px;font-weight:800;color:#fff;background:var(--green);box-shadow:0 8px 24px rgba(22,163,74,.45)}
+  .go.stop{background:var(--bg);box-shadow:0 8px 24px rgba(0,0,0,.35);padding:11px 18px;font-size:15px}
+  .go.pause{background:var(--amber);box-shadow:0 8px 24px rgba(217,119,6,.4);padding:11px 18px;font-size:15px}
+  .go[hidden]{display:none}
+  .sheet:not(.closed) ~ .ctrl{display:none}
+  .modal{position:fixed;inset:0;z-index:950;background:rgba(15,23,42,.6);display:none;align-items:flex-end;justify-content:center;padding:12px}
+  .modal.on{display:flex}
+  .modal .box{background:#fff;border-radius:20px;padding:20px 18px calc(16px + env(safe-area-inset-bottom));width:100%;max-width:460px}
+  .modal h4{margin:0 0 4px;font-size:20px}
+  .modal .big2{font-size:40px;font-weight:800;letter-spacing:-1px;margin:4px 0 10px}
+  .modal .al{border-radius:12px;padding:11px 12px;margin:8px 0;font-size:15px;line-height:1.35}
+  .modal .al.red{background:#fee2e2;color:#991b1b} .modal .al.amb{background:#fef3c7;color:#92400e} .modal .al.ok{background:#dcfce7;color:#166534}
+  .modal .bt{display:block;width:100%;border:0;border-radius:14px;padding:15px;font-size:16px;font-weight:800;margin-top:10px}
+  .modal .bt.g{background:var(--green);color:#fff} .modal .bt.k{background:#f1f5f9;color:var(--ink)}
   .leaflet-control-attribution{font-size:9px}
   .msg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:900;background:var(--bg);color:#fff;text-align:center;padding:30px;font-size:16px}
   .msg.on{display:flex}
@@ -125,7 +141,7 @@
 
 <!-- 3. Carte -->
 <div class="screen" id="mapScreen">
-  <div id="map"></div>
+  <div id="mapRot"><div id="map"></div></div>
   <div class="top">
     <div class="row">
       <button class="menu" id="toHome" title="Mes secteurs">☰</button>
@@ -149,10 +165,20 @@
   </div>
   <button class="btn" id="qrbtn" title="Revoir le code QR">QR</button>
   <button class="btn" id="me" title="Me centrer">◎</button>
-  <button class="go" id="go">▶ Démarrer ma tournée</button>
+  <button class="btn" id="nav" title="Carte dans le sens de la marche">🧭</button>
+  <button class="btn" id="fond" title="Plan / Satellite">🛰️</button>
+  <div class="ctrl"><button class="go pause" id="pause" hidden>⏸ Pause</button><button class="go" id="go">▶ Démarrer ma tournée</button></div>
 </div>
 
 <div class="msg" id="msg"></div>
+<div class="modal" id="cloture"><div class="box">
+  <h4>Clôturer le secteur ?</h4>
+  <div class="sub" id="cSect"></div>
+  <div class="big2" id="cPct"></div>
+  <div id="cAl"></div>
+  <button class="bt g" id="cBack">Continuer la tournée</button>
+  <button class="bt k" id="cOk">Clôturer quand même</button>
+</div></div>
 
 <script>
 (function(){
@@ -193,7 +219,8 @@
       b.innerHTML = '<span class="ic">📍</span><span class="tx"><b></b><small></small></span><span class="pc"></span>';
       b.querySelector('b').textContent = s.nom;
       if (s.remplacement) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag rep">Remplacement</span>');
-      if (ls('scan_' + wk() + '_' + s.id)) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag ok">QR scanné</span>');
+      if (ls('clos_' + wk() + '_' + s.id) != null) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag ok">Clôturé</span>');
+      else if (ls('scan_' + wk() + '_' + s.id)) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag ok">QR scanné</span>');
       b.querySelector('small').textContent = (s.boites ? s.boites + ' boîtes' : 'Pas de bon BD Media cette semaine') + (s.kml ? '' : ' · carte pas encore disponible');
       b.querySelector('.pc').textContent = p != null ? p + ' %' : '›';
       b.onclick = function(){ openQr(s); };
@@ -238,10 +265,75 @@
   var streets = [], sectorPoly = null, serverPts = [], first = true, lastPos = null, follow = true;
   function initMap(){
     if (map) return;
-    map = L.map('map', { zoomControl: false }).setView([50.85, 4.3], 14);
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles © Esri' }).addTo(map);
+    map = L.map('map', { zoomControl: false, maxZoom: 20 }).setView([50.85, 4.3], 14);
+    // Fonds de carte : plan clair (maisons visibles en zoomant) ou satellite (photo aérienne + noms de rues)
+    var ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+    FONDS = {
+      plan: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20, subdomains: 'abcd', attribution: '© OpenStreetMap © CARTO' }),
+      sat: L.layerGroup([
+        L.tileLayer(ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, attribution: 'Imagerie © Esri' }),
+        L.tileLayer(ESRI + 'Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19 }),
+        L.tileLayer(ESRI + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19 })
+      ])
+    };
+    setFond(ls('fond') === 'sat' ? 'sat' : 'plan');
+    // Ordre d'affichage : rues à faire < mon trajet < rues faites (le vert passe toujours au-dessus)
+    map.createPane('pTodo').style.zIndex = 410;
+    map.createPane('pTrace').style.zIndex = 420;
+    map.createPane('pDone').style.zIndex = 430;
+    map.createPane('pMe').style.zIndex = 640;
     gSector = L.layerGroup().addTo(map); gStreets = L.layerGroup().addTo(map); gTrace = L.layerGroup().addTo(map); gMe = L.layerGroup().addTo(map);
-    map.on('dragstart', function(){ follow = false; });
+    map.on('dragstart', function(){ follow = false; if (navOn) setNav(false); });
+  }
+  var FONDS = null, fond = null;
+  function setFond(f){
+    if (fond && FONDS[fond]) map.removeLayer(FONDS[fond]);
+    fond = f; FONDS[f].addTo(map); ls('fond', f);
+    $('fond').textContent = f === 'sat' ? '🗺️' : '🛰️';
+  }
+  $('fond').onclick = function(){ if (map) setFond(fond === 'sat' ? 'plan' : 'sat'); };
+
+  // ---- Mode navigation : la carte tourne dans le sens de la marche (comme un GPS) ----
+  var navOn = false, heading = null, rot = 0, compassOn = false;
+  function sizeRot(){
+    var box = $('mapRot');
+    if (navOn) { var d = Math.ceil(Math.hypot(innerWidth, innerHeight)) + 4; box.style.width = d + 'px'; box.style.height = d + 'px'; }
+    else { box.style.width = '100vw'; box.style.height = '100vh'; }
+    if (map) map.invalidateSize({ pan: false });
+  }
+  function applyRot(){
+    var target = navOn && heading != null ? -heading : 0;
+    var d = ((target - rot) % 360 + 540) % 360 - 180; rot += d;   // tourne par le chemin le plus court
+    $('mapRot').style.transform = 'translate(-50%,-50%) rotate(' + rot + 'deg)';
+    drawMe();
+  }
+  function setNav(on){
+    navOn = on; $('nav').classList.toggle('on', on); sizeRot();
+    if (on) { follow = true; startCompass(); if (lastPos) map.setView(lastPos, Math.max(map.getZoom(), 18)); }
+    applyRot();
+  }
+  function startCompass(){
+    if (compassOn) return;
+    function listen(){ compassOn = true; addEventListener('deviceorientation', function(e){
+      var h = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.absolute && e.alpha != null ? 360 - e.alpha : null);
+      if (h == null || moving()) return; heading = h; if (navOn) throttledRot(); }, true); }
+    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function')
+      DeviceOrientationEvent.requestPermission().then(function(r){ if (r === 'granted') listen(); }).catch(function(){});
+    else listen();
+  }
+  var lastRot = 0;
+  function throttledRot(){ var t = Date.now(); if (t - lastRot > 250) { lastRot = t; applyRot(); } }
+  var lastCourse = 0;
+  function moving(){ return Date.now() - lastCourse < 4000; }   // en marche : on suit la direction GPS plutôt que la boussole
+  $('nav').onclick = function(){ if (map) setNav(!navOn); };
+  addEventListener('resize', function(){ if (navOn) sizeRot(); });
+  function drawMe(){
+    if (!map || !lastPos) return;
+    gMe.clearLayers();
+    if (heading == null) { L.circleMarker(lastPos, { pane: 'pMe', radius:9, color:'#fff', weight:3, fillColor:'#2563eb', fillOpacity:1 }).addTo(gMe); return; }
+    var a = navOn ? heading + rot : heading;   // carte tournée : la flèche reste vers le haut
+    L.marker(lastPos, { pane: 'pMe', interactive: false, icon: L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15],
+      html: '<svg class="meArrow" viewBox="0 0 30 30" style="transform:rotate(' + a + 'deg)"><circle cx="15" cy="15" r="11" fill="#2563eb" stroke="#fff" stroke-width="3"/><path d="M15 6 L21 19 L15 16 L9 19 Z" fill="#fff"/></svg>' }) }).addTo(gMe);
   }
   function parseKml(txt){
     var doc = new DOMParser().parseFromString(txt, 'text/xml');
@@ -299,12 +391,17 @@
     });
     return tot ? Math.round(done / tot * 100) : 0;
   }
+  function drawTrace(){
+    gTrace.clearLayers();
+    var pts = allPoints(); if (pts.length > 1) L.polyline(pts.map(function(p){ return [p[0], p[1]]; }), { pane: 'pTrace', color:'#2563eb', weight:3, opacity:.85 }).addTo(gTrace);
+  }
   function drawAll(){
     var pct = compute();
     gStreets.clearLayers();
-    streets.forEach(function(s){ s.runs.forEach(function(r){ if (r.c.length > 1) L.polyline(r.c, { color: r.ok ? '#16a34a' : '#ff2ec4', weight: 8, opacity: .95, lineCap:'round' }).bindTooltip(s.name).addTo(gStreets); }); });
-    gTrace.clearLayers();
-    var pts = allPoints(); if (pts.length > 1) L.polyline(pts.map(function(p){ return [p[0], p[1]]; }), { color:'#2563eb', weight:3, opacity:.85 }).addTo(gTrace);
+    streets.forEach(function(s){ s.runs.forEach(function(r){ if (r.c.length > 1)
+      L.polyline(r.c, r.ok ? { pane: 'pDone', color: '#16a34a', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round' }
+                           : { pane: 'pTodo', color: '#ff2ec4', weight: 8, opacity: .95, lineCap: 'round', lineJoin: 'round' }).bindTooltip(s.name).addTo(gStreets); }); });
+    drawTrace();
     // liste par nom de rue
     var by = {}, order = [];
     streets.forEach(function(s){ var b = by[s.name]; if (!b) { b = by[s.name] = { name: s.name, addr: 0, n: 0, d: 0 }; order.push(b); } b.addr += s.addr; b.n++; if (s.done) b.d++; });
@@ -380,7 +477,7 @@
           return;
         }
         if (!loc || watchId === null) return;
-        onPos({ coords: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, speed: loc.speed }, timestamp: loc.time || Date.now() });
+        onPos({ coords: { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, speed: loc.speed, heading: loc.bearing }, timestamp: loc.time || Date.now() });
       }).then(function(id){ if (watchId === null) BG.removeWatcher({ id: id }); else bgId = id; });
   }
   function keepAwake(){
@@ -405,14 +502,15 @@
   function onPos(pos){
     var c = pos.coords; if (c.accuracy > 60) return;
     var pt = [c.latitude, c.longitude]; lastPos = pt;
-    if (!gotFix) { gotFix = true; follow = true; map.setView(pt, 17); } else if (follow) map.panTo(pt);
-    gMe.clearLayers(); L.circleMarker(pt, { radius:9, color:'#fff', weight:3, fillColor:'#2563eb', fillOpacity:1 }).addTo(gMe);
+    if (c.heading != null && c.heading >= 0 && (c.speed || 0) > 0.8) { heading = c.heading; lastCourse = Date.now(); }
+    if (!gotFix) { gotFix = true; follow = true; map.setView(pt, navOn ? 18 : 17); } else if (follow) map.panTo(pt);
+    applyRot();
     if (lastSent && dist(lastSent, pt) < 10 && pos.timestamp - lastSent.t < 60000) return;
     lastSent = pt; lastSent.t = pos.timestamp;
     queue.push({ lat: +pt[0].toFixed(6), lon: +pt[1].toFixed(6), acc: Math.round(c.accuracy), speed: c.speed || 0, t: pos.timestamp }); ls('q', queue.slice(-3000));
     var tr = ls('trace_' + wk()) || []; tr.push([+pt[0].toFixed(6), +pt[1].toFixed(6)]); ls('trace_' + wk(), tr.slice(-20000));
     if (Date.now() - lastDraw > 8000 && streets.length) { lastDraw = Date.now(); drawAll(); }
-    else if (!streets.length) { gTrace.clearLayers(); var all = allPoints(); if (all.length > 1) L.polyline(all, { color:'#2563eb', weight:3, opacity:.85 }).addTo(gTrace); }
+    else if (!streets.length) drawTrace();
     if (NATIVE) setLive(LIVE_NATIVE);
     else if (wakeLock || !('wakeLock' in navigator)) setLive(wakeLock ? '● En tournée · écran maintenu allumé' : 'En tournée · garde l’écran allumé', !wakeLock);
     flush(false);
@@ -420,8 +518,7 @@
   function start(){
     if (BG) {
       setLive('Recherche du GPS…'); gotFix = false; follow = true;
-      startNative(); ls('on', 1);
-      $('go').textContent = '■ Terminer'; $('go').className = 'go stop';
+      startNative(); ls('on', 1); paused = false; lsDel('pause'); setCtrl('run');
       return;
     }
     if (!navigator.geolocation) { alert('La localisation n’est pas disponible sur ce téléphone.'); return; }
@@ -431,8 +528,7 @@
         alert('La localisation est bloquée pour cette page.' + NL + NL + 'iPhone : Réglages > Confidentialité et sécurité > Service de localisation > Sites Safari (ou Safari) > « Lorsque l’app est active », puis recharge la page.' + NL + NL + 'Android : touche le cadenas à côté de l’adresse > Autorisations > Position > Autoriser.'); }
       else setLive('Signal GPS faible…', true);
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
-    keepAwake(); ls('on', 1);
-    $('go').textContent = '■ Terminer'; $('go').className = 'go stop';
+    keepAwake(); ls('on', 1); paused = false; lsDel('pause'); setCtrl('run');
   }
   function stop(silent){
     if (BG) { if (bgId !== null) BG.removeWatcher({ id: bgId }); bgId = null; }
@@ -440,14 +536,61 @@
     watchId = null;
     if (wakeLock) { wakeLock.release().catch(function(){}); wakeLock = null; }
     lsDel('on'); flush(true);
-    $('go').textContent = '▶ Démarrer ma tournée'; $('go').className = 'go';
+    setCtrl('idle');
     if (!silent) { setLive('Tournée en pause · positions envoyées'); if (streets.length) drawAll(); }
   }
-  $('go').onclick = function(){ if (watchId === null) start(); else if (confirm('Terminer la tournée ?')) stop(); };
-  $('me').onclick = function(){ follow = true; if (lastPos) map.setView(lastPos, 17); };
+
+  // ---- Boutons Pause / Reprendre / Terminer ----
+  var paused = false;
+  function setCtrl(st){
+    var go = $('go'), pz = $('pause');
+    if (st === 'run') { pz.hidden = false; pz.textContent = '⏸ Pause'; pz.className = 'go pause'; go.textContent = '■ Terminer'; go.className = 'go stop'; }
+    else if (st === 'paused') { pz.hidden = false; pz.textContent = '▶ Reprendre'; pz.className = 'go'; go.textContent = '■ Terminer'; go.className = 'go stop'; }
+    else { pz.hidden = true; go.textContent = ls('on') || ls('pause') ? '▶ Reprendre ma tournée' : '▶ Démarrer ma tournée'; go.className = 'go'; }
+  }
+  $('pause').onclick = function(){
+    if (paused) { start(); return; }
+    stop(true); paused = true; ls('pause', 1); setCtrl('paused');
+    setLive('⏸ Secteur en pause · appuie sur Reprendre pour continuer', true);
+    if (streets.length) drawAll();
+  };
+  $('go').onclick = function(){ if (watchId === null && !paused) start(); else openCloture(); };
+
+  // ---- Clôture : avertissement selon l'avancement (paiement à 90 %, bonus 10 % à 95 %, bonus 15 % à 98 %) ----
+  var PAYE = 90, BONUS10 = 95, BONUS15 = 98;
+  function openCloture(){
+    var pct = streets.length ? compute() : null, bonus = !!(data && data.bonus), al = [];
+    $('cSect').textContent = cur ? cur.nom : '';
+    $('cPct').textContent = pct == null ? '' : pct + ' %';
+    $('cPct').style.color = pct == null ? '' : (pct < PAYE ? '#dc2626' : (bonus && pct < BONUS15 ? '#d97706' : '#16a34a'));
+    function a(cls, t){ al.push('<div class="al ' + cls + '">' + t + '</div>'); }
+    if (pct == null) a('amb', 'La carte de ce secteur n’est pas disponible : l’avancement ne peut pas être calculé.');
+    else if (pct < PAYE) a('red', '⛔ <b>Ce secteur ne sera pas payé</b> si tu clôtures maintenant : il faut au moins ' + PAYE + ' % des rues faites.');
+    else {
+      a('ok', '✅ Au-dessus de ' + PAYE + ' % : le secteur sera payé.');
+      if (bonus) {
+        if (pct < BONUS10) a('amb', '⚠️ En dessous de ' + BONUS10 + ' % : tu perds le <b>bonus de 10 %</b> et le <b>bonus de 15 %</b>.');
+        else if (pct < BONUS15) a('amb', '⚠️ Bonus de 10 % gagné, mais en dessous de ' + BONUS15 + ' % tu perds le <b>bonus de 15 %</b>.');
+        else a('ok', '🏆 Bonus de 15 % gagné.');
+      }
+    }
+    $('cAl').innerHTML = al.join('');
+    $('cOk').textContent = pct != null && (pct < PAYE || (bonus && pct < BONUS15)) ? 'Clôturer quand même' : 'Clôturer le secteur';
+    $('cloture').classList.add('on');
+  }
+  $('cBack').onclick = function(){ $('cloture').classList.remove('on'); };
+  $('cOk').onclick = function(){
+    $('cloture').classList.remove('on');
+    var pct = streets.length ? compute() : null;
+    stop(true); paused = false; lsDel('pause'); lsDel('on'); setCtrl('idle');
+    if (cur) ls('clos_' + wk() + '_' + cur.id, pct == null ? -1 : pct);
+    setLive('✅ Secteur clôturé' + (pct == null ? '' : ' à ' + pct + ' %') + ' · positions envoyées');
+    if (streets.length) drawAll();
+  };
+  $('me').onclick = function(){ follow = true; if (lastPos) map.setView(lastPos, navOn ? 18 : 17); };
   setInterval(function(){ flush(false); }, 30000);
   window.addEventListener('online', function(){ flush(true); });
-  if (ls('on')) $('go').textContent = '▶ Reprendre ma tournée';
+  setCtrl('idle');
 
   // ---- démarrage ----
   // Saisie du lien personnel (app uniquement) : on accepte le lien complet ou juste la clé
