@@ -1,0 +1,37 @@
+# Lecture seule : état de la vérification TestFlight (bêta externe) et du lien public.
+name: Statut TestFlight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  statut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Interroger App Store Connect
+        env:
+          KID: ${{ secrets.ASC_KEY_ID }}
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'EOF'
+          import os, time, jwt, requests
+          tok = jwt.encode({"iss": os.environ["ISS"], "iat": int(time.time()), "exp": int(time.time()) + 600, "aud": "appstoreconnect-v1"},
+                           os.environ["P8"], algorithm="ES256", headers={"kid": os.environ["KID"], "typ": "JWT"})
+          H = {"Authorization": "Bearer " + tok}
+          B = "https://api.appstoreconnect.apple.com/v1"
+          def get(p, **q): r = requests.get(B + p, headers=H, params=q, timeout=30); r.raise_for_status(); return r.json()
+          app = get("/apps", **{"filter[bundleId]": "com.zianitransport.matournee"})["data"][0]
+          print("APP", app["attributes"]["name"], app["id"])
+          for g in get(f"/apps/{app['id']}/betaGroups")["data"]:
+              a = g["attributes"]
+              print("GROUPE", a.get("name"), "| interne" if a.get("isInternalGroup") else "| externe",
+                    "| lien public actif" if a.get("publicLinkEnabled") else "| lien public inactif", "|", a.get("publicLink") or "")
+          for b in get("/builds", **{"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 5, "include": "preReleaseVersion,buildBetaDetail"})["data"]:
+              a = b["attributes"]
+              print("BUILD", a.get("version"), "| traitement", a.get("processingState"), "| expire", a.get("expirationDate"))
+          for s in get("/betaAppReviewSubmissions", **{"filter[build]": ",".join(x["id"] for x in get("/builds", **{"filter[app]": app["id"], "limit": 5})["data"])})["data"]:
+              print("VERIFICATION", s["attributes"].get("betaReviewState"), "| envoyée", s["attributes"].get("submittedDate"))
+          EOF
