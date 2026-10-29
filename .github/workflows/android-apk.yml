@@ -1,0 +1,79 @@
+# Compile l'app Android « Ziani Transport » (APK signé) et la publie en téléchargement direct.
+# Lancement : Actions > « App Android → APK » > Run workflow.
+# Lien stable : https://github.com/zianitransport1/secteur/releases/download/android/ziani-transport.apk
+name: App Android → APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Numéro de version affiché (ex. 1.0)"
+        required: true
+        default: "1.0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Installer les dépendances
+        run: |
+          npm install --no-audit --no-fund
+          pip install --quiet --break-system-packages pillow || pip install --quiet pillow
+      - name: Préparer la page embarquée
+        run: npm run www
+      - name: Créer le projet Android
+        run: |
+          npx cap add android
+          npx cap sync android
+          python3 scripts/configure-android.py "${{ inputs.version }}" "${{ github.run_number }}"
+      - name: Clé de signature
+        env:
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          KID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android-signing.enc -out "$RUNNER_TEMP/ziani.jks" -pass pass:"$ISS-$KID"
+      - name: Compiler l'APK signé
+        env:
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          KID: ${{ secrets.ASC_KEY_ID }}
+        working-directory: app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/ziani.jks" \
+            -Pandroid.injected.signing.store.password="$ISS-$KID" \
+            -Pandroid.injected.signing.key.alias=ziani \
+            -Pandroid.injected.signing.key.password="$ISS-$KID"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/ziani-transport.apk"
+          ls -la "$RUNNER_TEMP/ziani-transport.apk"
+      - name: Publier le téléchargement
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create android "$RUNNER_TEMP/ziani-transport.apk" -R "$GITHUB_REPOSITORY" \
+            --title "App Android Ziani Transport ${{ inputs.version }} (build ${{ github.run_number }})" \
+            --notes "Télécharger ziani-transport.apk sur le téléphone Android, l'ouvrir et autoriser l'installation." --latest=false
+          echo "### ✅ APK publié : https://github.com/$GITHUB_REPOSITORY/releases/download/android/ziani-transport.apk" >> "$GITHUB_STEP_SUMMARY"
+      - name: Nettoyer la clé
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ziani.jks"

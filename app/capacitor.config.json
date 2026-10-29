@@ -10,5 +10,9 @@
     "CapacitorHttp": {
       "enabled": true
     }
+  },
+  "android": {
+    "useLegacyBridge": true,
+    "backgroundColor": "#0f172a"
   }
 }
