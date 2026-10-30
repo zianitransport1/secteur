@@ -118,11 +118,15 @@
     return fetch(API, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify(body), cache:'no-store' })
       .then(function(r){ if (r.status === 403) throw new Error('code'); if (!r.ok) throw new Error('serveur'); return r.json(); });
   }
-  // ---- semaines de tournée : du vendredi 00 h au jeudi, numéro = semaine des bons BD Media ----
+  // ---- semaines de tournée : du vendredi 12 h au vendredi 12 h (heure de Bruxelles), numéro = semaine des bons BD Media ----
+  // Bascule à midi : une tournée du jeudi soir terminée après minuit reste dans sa semaine (même règle que le serveur)
   function isoWeek(d){ var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); var day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day);
     var y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return Math.ceil(((t - y0) / 864e5 + 1) / 7); }
   function semaineDe(off){
-    var now = new Date(), d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var b = new Date(Date.now() - 12 * 3600e3), p = {};
+    try { new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Brussels', year: 'numeric', month: 'numeric', day: 'numeric' })
+      .formatToParts(b).forEach(function(x){ p[x.type] = +x.value; }); } catch (e) {}
+    var d = p.year ? new Date(p.year, p.month - 1, p.day) : new Date(b.getFullYear(), b.getMonth(), b.getDate());
     d.setDate(d.getDate() - ((d.getDay() - 5 + 7) % 7) + off * 7);
     var lun = new Date(d); lun.setDate(d.getDate() + 3); var jeu = new Date(d); jeu.setDate(d.getDate() + 6);
     var f = function(x){ return ('0' + x.getDate()).slice(-2) + '/' + ('0' + (x.getMonth() + 1)).slice(-2); };
