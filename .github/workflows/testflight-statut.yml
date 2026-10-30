@@ -35,6 +35,10 @@ jobs:
                   print("::notice::GROUPE-BUILDS", a.get("name"), [x["attributes"].get("version") for x in bs])
                   ts = get(f"/betaGroups/{g['id']}/betaTesters", limit=200)["data"]
                   print("::notice::GROUPE-TESTEURS", a.get("name"), len(ts))
+                  for path in (f"/betaGroups/{g['id']}/betaRecruitmentCriteria",):
+                      r = requests.get(B + path, headers=H, timeout=30)
+                      print("::notice::CRITERES", r.status_code, r.text[:600])
+                  print("::notice::GROUPE-ATTR", {k: v for k, v in a.items() if k not in ("name",)})
           for b in get("/builds", **{"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 3})["data"]:
               d = get(f"/builds/{b['id']}/buildBetaDetail")["data"]["attributes"]
               print("::notice::BUILD-ETAT", b["attributes"].get("version"), d.get("externalBuildState"), d.get("internalBuildState"))
