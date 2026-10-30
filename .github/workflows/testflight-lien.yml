@@ -1,0 +1,33 @@
+# Règle la limite du lien public du groupe externe « Chauffeurs BelgoCan » (débloque « n'accepte plus de nouveaux testeurs »).
+name: TestFlight lien public
+on:
+  workflow_dispatch:
+    inputs:
+      limite:
+        description: "Nombre maximum de testeurs via le lien public"
+        default: "1000"
+jobs:
+  lien:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          KID: ${{ secrets.ASC_KEY_ID }}
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8 }}
+          LIMITE: ${{ inputs.limite }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import os, time, jwt, requests
+          tok = jwt.encode({"iss": os.environ["ISS"], "iat": int(time.time()), "exp": int(time.time()) + 600, "aud": "appstoreconnect-v1"},
+                           os.environ["P8"], algorithm="ES256", headers={"kid": os.environ["KID"], "typ": "JWT"})
+          H = {"Authorization": "Bearer " + tok, "Content-Type": "application/json"}
+          B = "https://api.appstoreconnect.apple.com/v1"
+          app = requests.get(B + "/apps", headers=H, params={"filter[bundleId]": "com.zianitransport.matournee"}).json()["data"][0]
+          g = [x for x in requests.get(B + f"/apps/{app['id']}/betaGroups", headers=H).json()["data"] if not x["attributes"]["isInternalGroup"]][0]
+          body = {"data": {"type": "betaGroups", "id": g["id"], "attributes": {"publicLinkEnabled": True, "publicLinkLimitEnabled": True, "publicLinkLimit": int(os.environ["LIMITE"])}}}
+          r = requests.patch(B + f"/betaGroups/{g['id']}", headers=H, json=body)
+          a = r.json().get("data", {}).get("attributes", {})
+          print("::notice::RESULTAT", r.status_code, a.get("publicLinkEnabled"), a.get("publicLinkLimitEnabled"), a.get("publicLinkLimit"), a.get("publicLink"), r.text[:300] if r.status_code >= 300 else "")
+          PY
