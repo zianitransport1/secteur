@@ -5,14 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f172a">
 <meta name="robots" content="noindex">
-<title>Suivi des tournées</title>
+<title>Ziani Transport · Suivi des tournées</title>
 <link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-512.png">
 <style>
-  :root{--bg:#0f172a;--card:#fff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--green:#16a34a;--amber:#d97706;--red:#dc2626;--blue:#2563eb;--soft:#f1f5f9}
+  :root{--brand:#38b6ff;--bg:#0f172a;--card:#fff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--green:#16a34a;--amber:#d97706;--red:#dc2626;--blue:#2563eb;--soft:#f1f5f9}
   *{box-sizing:border-box}
   html,body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--soft);color:var(--ink)}
   button,input,select{font-family:inherit;font-size:15px}
-  header{background:var(--bg);color:#fff;padding:calc(16px + env(safe-area-inset-top)) 16px 18px;position:sticky;top:0;z-index:5}
+  header{background:var(--bg);color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 16px;position:sticky;top:0;z-index:5;border-bottom:4px solid var(--brand)}
+  header .brand{height:40px;width:auto;flex:none}
+  .login .brand{display:block;height:54px;width:auto;margin:0 auto 18px}
   header .in{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   header h1{margin:0;font-size:22px;font-weight:800;flex:1;min-width:200px}
   header h1 small{display:block;font-size:13px;font-weight:500;color:#94a3b8;margin-top:3px}
@@ -134,7 +137,7 @@
   }
   var WEEKS = [1, 0, -1, -2, -3];
   function login(err){
-    $app.innerHTML = '<div class="login"><h1>Suivi des tournées</h1><div class="hint">Accès réservé · entre ton code administrateur.</div>' +
+    $app.innerHTML = '<div class="login"><img class="brand" src="logo.png" alt="Ziani Transport"><h1>Suivi des tournées</h1><div class="hint">Accès réservé · entre ton code administrateur.</div>' +
       (err ? '<div class="tag t-pause" style="margin-top:8px">Code incorrect</div>' : '') +
       '<input id="code" type="password" autocomplete="current-password" placeholder="Code administrateur"><button class="btn blue" id="go">Entrer</button></div>';
     var go = function(){ tok = $('code').value.trim(); if (!tok) return; store('t', tok); load(true); };
@@ -150,7 +153,7 @@
   var ETATS = { 'clos': ['Clôturé', 't-clos'], 'en cours': ['En cours', 't-cours'], 'pause': ['En pause', 't-pause'], 'rouvert': ['Rouvert', 't-rouvert'], 'pas commencé': ['Pas commencé', 't-pas'] };
   function shell(){
     if ($('list')) return;
-    $app.innerHTML = '<header><div class="in"><h1>Suivi des tournées <small id="sub"></small></h1>' +
+    $app.innerHTML = '<header><div class="in"><img class="brand" src="logo-blanc.png" alt="Ziani Transport"><h1>Suivi des tournées <small id="sub"></small></h1>' +
       '<select class="wk" id="wk"></select><span class="live" id="live"><i></i><span id="liveT">En direct</span></span>' +
       '<button class="btn" id="refresh">↻ Actualiser</button></div></header><main>' +
       '<div class="tiles" id="tiles"></div>' +
@@ -365,7 +368,7 @@
   function load(first){
     if (!tok) return login();
     if (busy) return; busy = true;
-    if (first || !data) { if (!$('list')) $app.innerHTML = '<div class="login" style="text-align:center">Chargement…</div>'; else $('list').innerHTML = '<div class="empty">Chargement de la semaine…</div>'; }
+    if (first || !data) { if (!$('list')) $app.innerHTML = '<div class="login" style="text-align:center"><img class="brand" src="logo.png" alt=""><br>Chargement…</div>'; else $('list').innerHTML = '<div class="empty">Chargement de la semaine…</div>'; }
     call({ a:'admin', w: w }).then(function(d){ data = d; render(); var l = $('live'); l.className = 'live'; $('liveT').textContent = w === 0 ? 'En direct · actualisé toutes les 30 s' : 'Historique'; })
       .catch(function(e){
         if (e.message === 'code') { store('t', null); tok = ''; return login(true); }

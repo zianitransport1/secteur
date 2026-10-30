@@ -8,15 +8,15 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ma tournée">
-<title>Ma tournée</title>
+<title>Ziani Transport · Ma tournée</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-512.png">
 <link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
-  :root{--bg:#0f172a;--card:#ffffff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--pink:#ff2ec4;--green:#16a34a;--sector:#00c800;--blue:#2563eb;--amber:#d97706;}
+  :root{--brand:#38b6ff;--bg:#0f172a;--card:#ffffff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--pink:#ff2ec4;--green:#16a34a;--sector:#00c800;--blue:#2563eb;--amber:#d97706;}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
   button{font-family:inherit}
@@ -25,7 +25,11 @@
 
   /* ---- Liste des secteurs ---- */
   #home{background:#f1f5f9}
-  .head{background:var(--bg);color:#fff;padding:calc(18px + env(safe-area-inset-top)) 18px 22px}
+  .head{background:var(--bg);color:#fff;padding:calc(16px + env(safe-area-inset-top)) 18px 20px;border-bottom:4px solid var(--brand)}
+  .brand{display:block;height:34px;width:auto;margin:0 0 14px}
+  .mlogo{display:block;height:46px;width:auto;margin:0 auto 18px}
+  .qlogo{display:block;height:26px;width:auto;margin:4px auto 0;opacity:.95}
+  .card .ic{color:var(--brand)}
   .head h1{margin:0;font-size:24px;font-weight:800}
   .head p{margin:4px 0 0;color:#94a3b8;font-size:14px}
   .list{padding:14px 14px calc(24px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto}
@@ -123,7 +127,7 @@
 
 <!-- 1. Mes secteurs -->
 <div class="screen" id="home">
-  <div class="head"><h1 id="hName">Ma tournée</h1><p id="hWeek">Chargement…</p></div>
+  <div class="head"><img class="brand" src="logo-blanc.png" alt="Ziani Transport"><h1 id="hName">Ma tournée</h1><p id="hWeek">Chargement…</p></div>
   <div class="list">
     <p class="hint">Choisis le secteur que tu commences :</p>
     <div id="cards"></div>
@@ -133,6 +137,7 @@
 <!-- 2. Rappel code QR -->
 <div class="screen" id="qr">
   <div class="qrwrap">
+    <img class="qlogo" src="logo-blanc.png" alt="Ziani Transport">
     <button class="back" id="qrBack">← Mes secteurs</button>
     <div class="warn">📱 Scanne ce code QR avec ton PDA avant de commencer</div>
     <h2 id="qName"></h2>
@@ -199,7 +204,7 @@
   function lsDel(k){ try { localStorage.removeItem('mt_' + key + '_' + k); } catch (e) {} }
 
   function show(id){ ['home','qr','mapScreen'].forEach(function(s){ $(s).classList.toggle('on', s === id); }); if (id === 'mapScreen' && map) setTimeout(function(){ map.invalidateSize(); }, 50); }
-  function msg(html, btn, fn){ var m = $('msg'); m.innerHTML = html; if (btn) { var b = document.createElement('button'); b.textContent = btn; b.onclick = fn; m.appendChild(b); } m.classList.add('on'); }
+  function msg(html, btn, fn){ var m = $('msg'); m.innerHTML = '<img class="mlogo" src="logo-blanc.png" alt="Ziani Transport">' + html; if (btn) { var b = document.createElement('button'); b.textContent = btn; b.onclick = fn; m.appendChild(b); } m.classList.add('on'); }
   function hideMsg(){ $('msg').classList.remove('on'); }
   // Suivi en direct (avancement, pause, clôture) : serveur séparé, géré par l'admin
   var SUIVI = 'https://ziani1.app.n8n.cloud/webhook/tournee-suivi';

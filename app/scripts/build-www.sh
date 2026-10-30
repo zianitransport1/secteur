@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=..
 rm -rf www && mkdir -p www/vendor
-cp "$ROOT/index.html" "$ROOT/icon-192.png" "$ROOT/icon-512.png" "$ROOT/manifest.webmanifest" www/
+cp "$ROOT/index.html" "$ROOT/icon-192.png" "$ROOT/icon-512.png" "$ROOT/manifest.webmanifest" "$ROOT/logo.png" "$ROOT/logo-blanc.png" www/
 
 CDN=https://cdnjs.cloudflare.com/ajax/libs
 curl -fsSL "$CDN/leaflet/1.9.4/leaflet.min.css" -o www/vendor/leaflet.min.css
