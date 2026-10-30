@@ -28,7 +28,16 @@ jobs:
           for g in get(f"/apps/{app['id']}/betaGroups")["data"]:
               a = g["attributes"]
               print("::notice::GROUPE", a.get("name"), "| interne" if a.get("isInternalGroup") else "| externe",
-                    "| lien public actif" if a.get("publicLinkEnabled") else "| lien public inactif", "|", a.get("publicLink") or "")
+                    "| lien public actif" if a.get("publicLinkEnabled") else "| lien public inactif", "|", a.get("publicLink") or "",
+                    "| limite", a.get("publicLinkLimitEnabled"), a.get("publicLinkLimit"))
+              if not a.get("isInternalGroup"):
+                  bs = get(f"/betaGroups/{g['id']}/builds")["data"]
+                  print("::notice::GROUPE-BUILDS", a.get("name"), [x["attributes"].get("version") for x in bs])
+                  ts = get(f"/betaGroups/{g['id']}/betaTesters", limit=200)["data"]
+                  print("::notice::GROUPE-TESTEURS", a.get("name"), len(ts))
+          for b in get("/builds", **{"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 3})["data"]:
+              d = get(f"/builds/{b['id']}/buildBetaDetail")["data"]["attributes"]
+              print("::notice::BUILD-ETAT", b["attributes"].get("version"), d.get("externalBuildState"), d.get("internalBuildState"))
           for b in get("/builds", **{"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 5, "include": "preReleaseVersion,buildBetaDetail"})["data"]:
               a = b["attributes"]
               print("::notice::BUILD", a.get("version"), "| traitement", a.get("processingState"), "| expire", a.get("expirationDate"))
