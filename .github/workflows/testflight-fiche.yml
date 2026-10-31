@@ -1,0 +1,56 @@
+# Complète la fiche de l'app : classification par âge (tout « Aucun » / « Non » → 4+), prix gratuit, disponibilité Belgique.
+name: App Store fiche (âge, prix, pays)
+on: workflow_dispatch
+jobs:
+  fiche:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - env:
+          KID: ${{ secrets.ASC_KEY_ID }}
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import os, time, jwt, requests, json
+          tok = jwt.encode({"iss": os.environ["ISS"], "iat": int(time.time()), "exp": int(time.time()) + 1200, "aud": "appstoreconnect-v1"},
+                           os.environ["P8"], algorithm="ES256", headers={"kid": os.environ["KID"], "typ": "JWT"})
+          H = {"Authorization": "Bearer " + tok, "Content-Type": "application/json"}
+          B = "https://api.appstoreconnect.apple.com"
+          def note(*a): print("::notice::" + " ".join(str(x) for x in a)[:900])
+          A = requests.get(B + "/v1/apps", headers=H, params={"filter[bundleId]": "com.zianitransport.matournee"}).json()["data"][0]["id"]
+          # 1. Classification par âge : chaque question à « NONE », ou false si c'est une question oui/non
+          info = requests.get(B + f"/v1/apps/{A}/appInfos", headers=H).json()["data"][0]["id"]
+          decl = requests.get(B + f"/v1/appInfos/{info}/ageRatingDeclaration", headers=H).json()["data"]
+          skip = {"kidsAgeBand", "ageRatingOverride", "ageRatingOverrideV2", "koreaAgeRatingOverride", "developerAgeRatingInfoUrl"}
+          for k, v in decl["attributes"].items():
+              if k in skip or v is not None: continue
+              ok = False
+              for val in ("NONE", False):
+                  r = requests.patch(B + f"/v1/ageRatingDeclarations/{decl['id']}", headers=H,
+                      json={"data": {"type": "ageRatingDeclarations", "id": decl["id"], "attributes": {k: val}}})
+                  if r.status_code < 300: ok = True; break
+              note("AGE", k, "OK" if ok else "ECHEC " + r.text[:200])
+          # 2. Prix : gratuit
+          pts = requests.get(B + f"/v1/apps/{A}/appPricePoints", headers=H, params={"filter[territory]": "USA", "limit": 200}).json()["data"]
+          free = [p for p in pts if float(p["attributes"].get("customerPrice") or 0) == 0][0]
+          r = requests.post(B + "/v1/appPriceSchedules", headers=H, json={
+              "data": {"type": "appPriceSchedules", "relationships": {
+                  "app": {"data": {"type": "apps", "id": A}},
+                  "baseTerritory": {"data": {"type": "territories", "id": "USA"}},
+                  "manualPrices": {"data": [{"type": "appPrices", "id": "${p1}"}]}}},
+              "included": [{"type": "appPrices", "id": "${p1}", "attributes": {"startDate": None},
+                  "relationships": {"appPricePoint": {"data": {"type": "appPricePoints", "id": free["id"]}}}}]})
+          note("PRIX", r.status_code, r.text[:300] if r.status_code >= 300 else "gratuit")
+          # 3. Disponibilité : Belgique
+          r = requests.post(B + "/v2/appAvailabilities", headers=H, json={
+              "data": {"type": "appAvailabilities", "attributes": {"availableInNewTerritories": False}, "relationships": {
+                  "app": {"data": {"type": "apps", "id": A}},
+                  "territoryAvailabilities": {"data": [{"type": "territoryAvailabilities", "id": "${bel}"}]}}},
+              "included": [{"type": "territoryAvailabilities", "id": "${bel}", "attributes": {"available": True},
+                  "relationships": {"territory": {"data": {"type": "territories", "id": "BEL"}}}}]})
+          note("PAYS", r.status_code, r.text[:400] if r.status_code >= 300 else "Belgique")
+          d = requests.get(B + f"/v1/appInfos/{info}/ageRatingDeclaration", headers=H).json()["data"]["attributes"]
+          note("AGE-RESTANT", [k for k, v in d.items() if v is None and k not in skip])
+          PY
