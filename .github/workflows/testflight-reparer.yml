@@ -1,0 +1,47 @@
+# Répare le lien public : crée les critères d'appareils du groupe externe (iPhone/iPad iOS 14+), puis teste la page du lien.
+name: TestFlight réparer lien
+on:
+  workflow_dispatch:
+    inputs:
+      basculer:
+        description: "Aussi désactiver puis réactiver le lien public (oui/non)"
+        default: "non"
+jobs:
+  r:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          KID: ${{ secrets.ASC_KEY_ID }}
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8 }}
+          BASC: ${{ inputs.basculer }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import os, time, jwt, requests, json
+          tok = jwt.encode({"iss": os.environ["ISS"], "iat": int(time.time()), "exp": int(time.time()) + 600, "aud": "appstoreconnect-v1"},
+                           os.environ["P8"], algorithm="ES256", headers={"kid": os.environ["KID"], "typ": "JWT"})
+          H = {"Authorization": "Bearer " + tok, "Content-Type": "application/json"}
+          B = "https://api.appstoreconnect.apple.com/v1"
+          app = requests.get(B + "/apps", headers=H, params={"filter[bundleId]": "com.zianitransport.matournee"}).json()["data"][0]
+          g = [x for x in requests.get(B + f"/apps/{app['id']}/betaGroups", headers=H).json()["data"] if not x["attributes"]["isInternalGroup"]][0]
+          f = [{"deviceFamily": "IPHONE", "minimumOsInclusive": "14.0"}, {"deviceFamily": "IPAD", "minimumOsInclusive": "14.0"}]
+          r = requests.post(B + "/betaRecruitmentCriteria", headers=H, json={"data": {"type": "betaRecruitmentCriteria",
+                "attributes": {"deviceFamilyOsVersionFilters": f}, "relationships": {"betaGroup": {"data": {"type": "betaGroups", "id": g["id"]}}}}})
+          print("::notice::CRITERES-CREATION", r.status_code, r.text[:500])
+          r = requests.get(B + f"/betaGroups/{g['id']}/betaRecruitmentCriteria", headers=H)
+          print("::notice::CRITERES-LECTURE", r.status_code, r.text[:400])
+          if os.environ.get("BASC") == "oui":
+              for v in (False, True):
+                  r = requests.patch(B + f"/betaGroups/{g['id']}", headers=H, json={"data": {"type": "betaGroups", "id": g["id"], "attributes": {"publicLinkEnabled": v}}})
+                  print("::notice::LIEN", v, r.status_code, (r.json().get("data", {}).get("attributes", {}) or {}).get("publicLink") if r.ok else r.text[:300])
+                  time.sleep(5)
+          PY
+      - name: Tester la page du lien
+        run: |
+          sleep 20
+          for u in $(echo https://testflight.apple.com/join/1jsTUSEk); do
+            t=$(curl -sSL -A "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1" -H "Accept-Language: fr-BE" $u | python3 -c "import re,sys;h=sys.stdin.read();h=re.sub(r'(?s)<(script|style).*?</\1>',' ',h);print(re.sub(r'\s+',' ',re.sub(r'<[^>]+>',' ',h))[:250])")
+            echo "::notice::PAGE $t"
+          done
