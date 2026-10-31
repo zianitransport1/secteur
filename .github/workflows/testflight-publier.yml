@@ -1,0 +1,51 @@
+# Met la dernière version sur le lien public : attend le traitement Apple, ajoute au groupe externe,
+# envoie à la vérification bêta et la rend disponible automatiquement une fois approuvée.
+name: TestFlight publier
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "Nouveautés"
+        default: "Suivi GPS écran verrouillé"
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - env:
+          KID: ${{ secrets.ASC_KEY_ID }}
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8 }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import os, time, jwt, requests
+          def H():
+              t = jwt.encode({"iss": os.environ["ISS"], "iat": int(time.time()), "exp": int(time.time()) + 900, "aud": "appstoreconnect-v1"},
+                             os.environ["P8"], algorithm="ES256", headers={"kid": os.environ["KID"], "typ": "JWT"})
+              return {"Authorization": "Bearer " + t, "Content-Type": "application/json"}
+          B = "https://api.appstoreconnect.apple.com/v1"
+          app = requests.get(B + "/apps", headers=H(), params={"filter[bundleId]": "com.zianitransport.matournee"}).json()["data"][0]
+          g = [x for x in requests.get(B + f"/apps/{app['id']}/betaGroups", headers=H()).json()["data"] if not x["attributes"]["isInternalGroup"]][0]
+          for i in range(80):
+              b = requests.get(B + "/builds", headers=H(), params={"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 1}).json()["data"][0]
+              st = b["attributes"]["processingState"]
+              if st == "VALID": break
+              print("build", b["attributes"]["version"], st); time.sleep(30)
+          print("::notice::BUILD", b["attributes"]["version"], st)
+          if st != "VALID": raise SystemExit("build pas prêt")
+          d = requests.get(B + f"/builds/{b['id']}/buildBetaDetail", headers=H()).json()["data"]
+          r = requests.patch(B + f"/buildBetaDetails/{d['id']}", headers=H(), json={"data": {"type": "buildBetaDetails", "id": d["id"], "attributes": {"autoNotifyEnabled": True}}})
+          print("::notice::AUTO", r.status_code)
+          locs = requests.get(B + f"/builds/{b['id']}/betaBuildLocalizations", headers=H()).json()["data"]
+          if locs:
+              r = requests.patch(B + f"/betaBuildLocalizations/{locs[0]['id']}", headers=H(), json={"data": {"type": "betaBuildLocalizations", "id": locs[0]["id"], "attributes": {"whatsNew": os.environ["NOTES"]}}})
+          else:
+              r = requests.post(B + "/betaBuildLocalizations", headers=H(), json={"data": {"type": "betaBuildLocalizations", "attributes": {"locale": "fr-FR", "whatsNew": os.environ["NOTES"]}, "relationships": {"build": {"data": {"type": "builds", "id": b["id"]}}}}})
+          print("::notice::NOTES", r.status_code)
+          r = requests.post(B + f"/betaGroups/{g['id']}/relationships/builds", headers=H(), json={"data": [{"type": "builds", "id": b["id"]}]})
+          print("::notice::GROUPE", r.status_code, r.text[:200])
+          r = requests.post(B + "/betaAppReviewSubmissions", headers=H(), json={"data": {"type": "betaAppReviewSubmissions", "relationships": {"build": {"data": {"type": "builds", "id": b["id"]}}}}})
+          print("::notice::VERIFICATION", r.status_code, r.text[:300])
+          PY
