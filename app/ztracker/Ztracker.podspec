@@ -1,5 +1,5 @@
 Pod::Spec.new do |s|
-  s.name = 'ZTracker'
+  s.name = 'Ztracker'
   s.version = '1.0.0'
   s.summary = 'GPS natif Ziani Transport'
   s.license = 'Proprietary'
