@@ -53,7 +53,9 @@ jobs:
           PY
       - name: Page du lien public
         run: |
-          for l in fr-BE en-US; do
-            t=$(curl -sSL -H "Accept-Language: $l" -A "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1" https://testflight.apple.com/join/1jsTUSEk | python3 -c "import re,sys;h=sys.stdin.read();h=re.sub(r'(?s)<(script|style).*?</\1>',' ',h);print(re.sub(r'\s+',' ',re.sub(r'<[^>]+>',' ',h))[:700])")
-            echo "::notice::PAGE $l $t"
+          ok=0; ko=0
+          for n in $(seq 1 12); do
+            if curl -sSL -H "Cache-Control: no-cache" -A "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1" "https://testflight.apple.com/join/1jsTUSEk?n=$n" | grep -q "accepte plus\|accepting any new"; then ko=$((ko+1)); else ok=$((ok+1)); fi
+            sleep 5
           done
+          echo "::notice::PAGE ouvert=$ok ferme=$ko"
