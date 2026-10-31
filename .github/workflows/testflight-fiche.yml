@@ -68,7 +68,7 @@ jobs:
               "data": {"type": "appAvailabilities", "attributes": {"availableInNewTerritories": False}, "relationships": {
                   "app": {"data": {"type": "apps", "id": A}},
                   "territoryAvailabilities": {"data": [{"type": "territoryAvailabilities", "id": x["id"]} for x in inc]}}},
-              "included": inc + [{"type": "territories", "id": t} for t in terr]})
+              "included": inc})
           if r.status_code >= 300 and "territories" in r.text:
               r = requests.post(B + "/v2/appAvailabilities", headers=H, json={
                   "data": {"type": "appAvailabilities", "attributes": {"availableInNewTerritories": False}, "relationships": {
