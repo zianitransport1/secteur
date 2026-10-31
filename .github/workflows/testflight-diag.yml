@@ -51,3 +51,9 @@ jobs:
               t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"(?s)<(script|style).*?</\1>", " ", r.text)))
               print("::notice::PAGE-LIEN " + lang + " " + str(r.status_code) + " " + t[:700])
           PY
+      - name: Page du lien public
+        run: |
+          for l in fr-BE en-US; do
+            t=$(curl -sSL -H "Accept-Language: $l" -A "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1" https://testflight.apple.com/join/1jsTUSEk | python3 -c "import re,sys;h=sys.stdin.read();h=re.sub(r'(?s)<(script|style).*?</\1>',' ',h);print(re.sub(r'\s+',' ',re.sub(r'<[^>]+>',' ',h))[:700])")
+            echo "::notice::PAGE $l $t"
+          done
