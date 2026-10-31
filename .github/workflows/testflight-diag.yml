@@ -1,0 +1,47 @@
+# Lecture seule : diagnostic complet de la bêta externe TestFlight.
+name: TestFlight diagnostic
+on: workflow_dispatch
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          KID: ${{ secrets.ASC_KEY_ID }}
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import os, time, jwt, requests, json
+          tok = jwt.encode({"iss": os.environ["ISS"], "iat": int(time.time()), "exp": int(time.time()) + 600, "aud": "appstoreconnect-v1"},
+                           os.environ["P8"], algorithm="ES256", headers={"kid": os.environ["KID"], "typ": "JWT"})
+          H = {"Authorization": "Bearer " + tok}
+          B = "https://api.appstoreconnect.apple.com/v1"
+          def show(label, path, **q):
+              r = requests.get(B + path, headers=H, params=q, timeout=30)
+              txt = r.text
+              try:
+                  j = r.json(); d = j.get("data", j.get("errors"))
+                  if isinstance(d, list): d = [ {k: x.get(k) for k in ("id", "attributes", "detail", "code", "title")} for x in d ]
+                  elif isinstance(d, dict): d = {k: d.get(k) for k in ("id", "attributes")}
+                  txt = json.dumps(d, ensure_ascii=False)
+              except Exception: pass
+              print("::notice::" + label + " " + str(r.status_code) + " " + txt[:900])
+              return r
+          app = requests.get(B + "/apps", headers=H, params={"filter[bundleId]": "com.zianitransport.matournee"}).json()["data"][0]; A = app["id"]
+          g = [x for x in requests.get(B + f"/apps/{A}/betaGroups", headers=H).json()["data"] if not x["attributes"]["isInternalGroup"]][0]
+          show("CRITERES", f"/betaGroups/{g['id']}/betaRecruitmentCriteria")
+          show("BETA-APP-INFO", f"/apps/{A}/betaAppLocalizations")
+          show("BETA-REVIEW-DETAIL", f"/apps/{A}/betaAppReviewDetail")
+          show("BETA-LICENSE", f"/apps/{A}/betaLicenseAgreement")
+          show("APP-INFOS", f"/apps/{A}/appInfos")
+          infos = requests.get(B + f"/apps/{A}/appInfos", headers=H).json().get("data", [])
+          for i in infos: show("AGE-RATING", f"/appInfos/{i['id']}/ageRatingDeclaration")
+          bs = requests.get(B + f"/betaGroups/{g['id']}/builds", headers=H).json()["data"]
+          for b in bs:
+              print("::notice::BUILD-GROUPE " + json.dumps(b["attributes"], ensure_ascii=False)[:700])
+              show("BUILD-DETAIL", f"/builds/{b['id']}/buildBetaDetail")
+          show("APP-ATTR", f"/apps/{A}")
+          show("AVAILABILITY", f"/apps/{A}/appAvailabilityV2")
+          PY
