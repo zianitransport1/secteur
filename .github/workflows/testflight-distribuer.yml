@@ -1,0 +1,46 @@
+# Donne le dernier build (ou un build choisi) au groupe externe « Chauffeurs BelgoCan » (lien public)
+# et l'envoie à la vérification bêta d'Apple si nécessaire.
+name: TestFlight distribuer
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: "Numéro de build (vide = le plus récent)"
+        default: ""
+jobs:
+  d:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          KID: ${{ secrets.ASC_KEY_ID }}
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8 }}
+          BUILD: ${{ inputs.build }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'EOF'
+          import os, time, jwt, requests
+          tok = jwt.encode({"iss": os.environ["ISS"], "iat": int(time.time()), "exp": int(time.time()) + 600, "aud": "appstoreconnect-v1"},
+                           os.environ["P8"], algorithm="ES256", headers={"kid": os.environ["KID"], "typ": "JWT"})
+          H = {"Authorization": "Bearer " + tok, "Content-Type": "application/json"}
+          B = "https://api.appstoreconnect.apple.com/v1"
+          def get(p, **q): r = requests.get(B + p, headers=H, params=q, timeout=30); r.raise_for_status(); return r.json()
+          app = get("/apps", **{"filter[bundleId]": "com.zianitransport.matournee"})["data"][0]
+          builds = get("/builds", **{"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 10})["data"]
+          want = os.environ.get("BUILD", "").strip()
+          b = next((x for x in builds if not want or x["attributes"]["version"] == want), None)
+          if not b: raise SystemExit("Build introuvable")
+          print("::notice::BUILD", b["attributes"]["version"], b["attributes"].get("processingState"))
+          # Conformité export (pas de chiffrement propriétaire) si pas encore renseignée
+          if b["attributes"].get("usesNonExemptEncryption") is None:
+              r = requests.patch(B + f"/builds/{b['id']}", headers=H, json={"data": {"type": "builds", "id": b["id"], "attributes": {"usesNonExemptEncryption": False}}}, timeout=30)
+              print("::notice::CONFORMITE", r.status_code, r.text[:200])
+          g = next(x for x in get(f"/apps/{app['id']}/betaGroups")["data"] if x["attributes"]["name"] == "Chauffeurs BelgoCan")
+          r = requests.post(B + f"/betaGroups/{g['id']}/relationships/builds", headers=H, json={"data": [{"type": "builds", "id": b["id"]}]}, timeout=30)
+          print("::notice::AJOUT-GROUPE", r.status_code, r.text[:300])
+          r = requests.post(B + "/betaAppReviewSubmissions", headers=H, json={"data": {"type": "betaAppReviewSubmissions", "relationships": {"build": {"data": {"type": "builds", "id": b["id"]}}}}}, timeout=30)
+          print("::notice::VERIFICATION", r.status_code, r.text[:400])
+          d = get(f"/builds/{b['id']}/buildBetaDetail")["data"]["attributes"]
+          print("::notice::ETAT", d.get("externalBuildState"), d.get("internalBuildState"))
+          EOF
