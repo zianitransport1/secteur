@@ -4,6 +4,9 @@ name: TestFlight publier
 on:
   workflow_dispatch:
     inputs:
+      build:
+        description: "Numéro de build (vide = le dernier)"
+        default: ""
       notes:
         description: "Nouveautés"
         default: "Suivi GPS écran verrouillé"
@@ -17,6 +20,7 @@ jobs:
           ISS: ${{ secrets.ASC_ISSUER_ID }}
           P8: ${{ secrets.ASC_KEY_P8 }}
           NOTES: ${{ inputs.notes }}
+          BUILD: ${{ inputs.build }}
         run: |
           pip install --quiet pyjwt cryptography requests
           python3 - <<'PY'
@@ -29,8 +33,11 @@ jobs:
           app = requests.get(B + "/apps", headers=H(), params={"filter[bundleId]": "com.zianitransport.matournee"}).json()["data"][0]
           g = [x for x in requests.get(B + f"/apps/{app['id']}/betaGroups", headers=H()).json()["data"] if not x["attributes"]["isInternalGroup"]][0]
           for i in range(80):
-              b = requests.get(B + "/builds", headers=H(), params={"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 1}).json()["data"][0]
-              st = b["attributes"]["processingState"]
+              q = {"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 1}
+              if os.environ.get("BUILD"): q["filter[version]"] = os.environ["BUILD"]
+              lst = requests.get(B + "/builds", headers=H(), params=q).json().get("data", [])
+              if not lst: print("pas encore visible"); st = None; time.sleep(30); continue
+              b = lst[0]; st = b["attributes"]["processingState"]
               if st == "VALID": break
               print("build", b["attributes"]["version"], st); time.sleep(30)
           print("::notice::BUILD", b["attributes"]["version"], st)
