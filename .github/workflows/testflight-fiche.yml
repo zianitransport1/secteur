@@ -25,17 +25,27 @@ jobs:
           decl = requests.get(B + f"/v1/appInfos/{info}/ageRatingDeclaration", headers=H).json()["data"]
           skip = {"kidsAgeBand", "ageRatingOverride", "ageRatingOverrideV2", "koreaAgeRatingOverride", "developerAgeRatingInfoUrl"}
           note("AGE-CHAMPS", {k: v for k, v in decl["attributes"].items()})
-          errs = []
-          for k, v in decl["attributes"].items():
-              if k in skip or v is not None: continue
-              ok = False; last = ""
-              for val in ("NONE", False):
-                  r = requests.patch(B + f"/v1/ageRatingDeclarations/{decl['id']}", headers=H,
-                      json={"data": {"type": "ageRatingDeclarations", "id": decl["id"], "attributes": {k: val}}})
-                  if r.status_code < 300: ok = True; break
-                  last = " | ".join(e.get("detail", "") for e in r.json().get("errors", []))
-              if not ok: errs.append(k + ": " + last)
-          note("AGE-ERREURS", len(errs)); [note("AGE-ERR", e) for e in errs[:3]]
+          import re
+          skip |= {"gracRatingClassificationNumber"}
+          BOOL = {"advertising", "gambling", "lootBox", "messagingAndChat", "parentalControls", "healthOrWellnessTopics",
+                  "ageAssurance", "socialMedia", "socialMediaAgeRestricted", "unrestrictedWebAccess", "userGeneratedContent",
+                  "contests"}
+          vals = {k: (False if k in BOOL else "NONE") for k, v in decl["attributes"].items() if k not in skip and v is None}
+          for essai in range(6):
+              r = requests.patch(B + f"/v1/ageRatingDeclarations/{decl['id']}", headers=H,
+                  json={"data": {"type": "ageRatingDeclarations", "id": decl["id"], "attributes": vals}})
+              if r.status_code < 300: note("AGE", "OK", essai); break
+              errs = r.json().get("errors", []); changed = False
+              for e in errs:
+                  det = e.get("detail", "")
+                  m = re.search(r"attribute '(\w+)'", det)
+                  if not m: continue
+                  k = m.group(1)
+                  if "Expected a STRING" in det or "Expected one of" in det: vals[k] = "NONE"; changed = True
+                  elif "Expected a BOOLEAN" in det or "BOOLEAN" in det: vals[k] = False; changed = True
+                  elif "must provide a value" in det and k not in vals: vals[k] = "NONE"; changed = True
+              note("AGE-ESSAI", essai, " | ".join(e.get("detail", "") for e in errs)[:700])
+              if not changed: break
           # 2. Prix : gratuit
           pts = requests.get(B + f"/v1/apps/{A}/appPricePoints", headers=H, params={"filter[territory]": "USA", "limit": 200}).json()["data"]
           free = [p for p in pts if float(p["attributes"].get("customerPrice") or 0) == 0][0]
@@ -54,7 +64,7 @@ jobs:
                   "territoryAvailabilities": {"data": [{"type": "territoryAvailabilities", "id": "${bel}"}]}}},
               "included": [{"type": "territoryAvailabilities", "id": "${bel}", "attributes": {"available": True},
                   "relationships": {"territory": {"data": {"type": "territories", "id": "BEL"}}}}]})
-          note("PAYS", r.status_code, r.text[:400] if r.status_code >= 300 else "Belgique")
+          note("PAYS", r.status_code, " | ".join(e.get("detail", "") for e in r.json().get("errors", []))[:700] if r.status_code >= 300 else "Belgique")
           d = requests.get(B + f"/v1/appInfos/{info}/ageRatingDeclaration", headers=H).json()["data"]["attributes"]
           note("AGE-RESTANT", [k for k, v in d.items() if v is None and k not in skip])
           PY
