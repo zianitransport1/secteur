@@ -415,10 +415,11 @@
     });
     return list;
   }
-  function allPoints(){
-    var live = ls('trace_' + wk()) || [];
-    return serverPts.concat(live);
-  }
+  var liveTr = null, liveWk = null, trDirty = false;
+  function liveTrace(){ if (liveWk !== wk()) { liveWk = wk(); liveTr = ls('trace_' + liveWk) || []; } return liveTr; }
+  function saveLocal(){ if (!trDirty) return; trDirty = false; if (liveTr) ls('trace_' + liveWk, liveTr.slice(-20000)); ls('q', queue.slice(-3000)); }
+  setInterval(saveLocal, 20000);
+  function allPoints(){ return serverPts.concat(liveTrace()); }
   function compute(){
     var grid = {};
     allPoints().forEach(function(p){ var q = xy(p), k = Math.floor(q[0] / R) + ':' + Math.floor(q[1] / R); (grid[k] = grid[k] || []).push(q); });
@@ -534,29 +535,47 @@
     navigator.wakeLock.request('screen').then(function(w){ if (watchId === null) { w.release(); return; } wakeLock = w; if (gotFix) setLive('● En tournée · écran maintenu allumé'); })
       .catch(function(){ if (watchId !== null) setLive('En tournée · garde l’écran allumé', true); });
   }
+  function onResume(){
+    if (watchId === null || !map) return;
+    map.invalidateSize({ pan: false });
+    if (lastPos && follow) map.setView(lastPos, map.getZoom(), { animate: false });
+    if (streets.length) { lastDraw = Date.now(); drawAll(); } applyRot();
+  }
   document.addEventListener('visibilitychange', function(){
-    if (document.visibilityState === 'visible' && watchId !== null) keepAwake();
-    if (document.visibilityState === 'hidden') flush(true);
+    if (document.visibilityState === 'visible' && watchId !== null) { keepAwake(); onResume(); }
+    if (document.visibilityState === 'hidden') { trDirty = true; saveLocal(); flush(true); }
   });
+  addEventListener('pagehide', function(){ trDirty = true; saveLocal(); });
+  // flèche grise si plus de position depuis 20 s (au lieu de disparaître)
+  var lastFix = 0;
+  setInterval(function(){
+    var old = watchId !== null && lastFix && Date.now() - lastFix > 20000;
+    var pane = map && map.getPane('pMe'); if (pane) pane.style.filter = old ? 'grayscale(1) opacity(.6)' : '';
+    if (old && !document.hidden) setLive('Signal GPS perdu… dernière position affichée', true);
+    else if (!old && watchId !== null && NATIVE && gotFix && /Signal GPS perdu/.test($('live').textContent)) setLive(LIVE_NATIVE);
+  }, 5000);
   function flush(force){
     if (sending || !queue.length) return;
     if (!force && Date.now() - lastFlush < SEND_EVERY && queue.length < 60) return;
     sending = true; var batch = queue.slice(0, 200);
     api({ a:'pos', positions: batch })
-      .then(function(){ queue = queue.slice(batch.length); ls('q', queue); lastFlush = Date.now(); })
+      .then(function(){ queue = queue.slice(batch.length); trDirty = true; lastFlush = Date.now(); })
       .catch(function(){ if (watchId !== null) setLive('Pas de réseau · positions gardées, envoi dès que possible', true); })
       .then(function(){ sending = false; });
   }
   function onPos(pos){
-    var c = pos.coords; if (c.accuracy > 60) return;
-    var pt = [c.latitude, c.longitude]; lastPos = pt;
+    var c = pos.coords, pt = [c.latitude, c.longitude];
+    if (c.accuracy > 150) return;                      // position inutilisable
+    lastPos = pt; lastFix = Date.now();
     if (c.heading != null && c.heading >= 0 && (c.speed || 0) > 0.8) { heading = c.heading; lastCourse = Date.now(); }
-    if (!gotFix) { gotFix = true; follow = true; map.setView(pt, navOn ? 18 : 17); } else if (follow) map.panTo(pt);
+    if (!gotFix) { gotFix = true; follow = true; map.setView(pt, navOn ? 18 : 17); }
+    else if (follow) map.panTo(pt, { animate: !document.hidden && (c.speed || 0) < 12, duration: 0.5 });
     applyRot();
+    if (c.accuracy > 60) return;                       // signal moyen : la flèche bouge, mais on ne valide pas de rue
     if (lastSent && dist(lastSent, pt) < 10 && pos.timestamp - lastSent.t < 60000) return;
     lastSent = pt; lastSent.t = pos.timestamp;
-    queue.push({ lat: +pt[0].toFixed(6), lon: +pt[1].toFixed(6), acc: Math.round(c.accuracy), speed: c.speed || 0, t: pos.timestamp }); ls('q', queue.slice(-3000));
-    var tr = ls('trace_' + wk()) || []; tr.push([+pt[0].toFixed(6), +pt[1].toFixed(6)]); ls('trace_' + wk(), tr.slice(-20000));
+    queue.push({ lat: +pt[0].toFixed(6), lon: +pt[1].toFixed(6), acc: Math.round(c.accuracy), speed: c.speed || 0, t: pos.timestamp });
+    liveTrace().push([+pt[0].toFixed(6), +pt[1].toFixed(6)]); trDirty = true;
     if (Date.now() - lastDraw > 8000 && streets.length) { lastDraw = Date.now(); drawAll(); }
     else if (!streets.length) drawTrace();
     if (NATIVE) setLive(LIVE_NATIVE);
@@ -572,6 +591,11 @@
   function start(){
     sendProg('en cours');
     if (BG) {
+      var ANDROID = window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'android';
+      if (ANDROID && !localStorage.getItem('mt_batt')) {
+        try { localStorage.setItem('mt_batt', '1'); } catch (e) {}
+        if (confirm('Pour que le suivi marche écran verrouillé :' + NL + NL + 'Dans les réglages qui vont s’ouvrir, touche « Batterie » puis choisis « Sans restriction » (ou « Non optimisée »).' + NL + NL + 'Ouvrir les réglages maintenant ?')) BG.openSettings();
+      }
       setLive('Recherche du GPS…'); gotFix = false; follow = true;
       startNative(); ls('on', 1); paused = false; lsDel('pause'); setCtrl('run');
       return;
