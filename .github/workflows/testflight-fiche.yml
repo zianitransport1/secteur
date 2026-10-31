@@ -58,12 +58,23 @@ jobs:
                   "relationships": {"appPricePoint": {"data": {"type": "appPricePoints", "id": free["id"]}}}}]})
           note("PRIX", r.status_code, r.text[:300] if r.status_code >= 300 else "gratuit")
           # 3. Disponibilité : Belgique
+          terr = []
+          url = B + "/v1/territories?limit=200"
+          while url:
+              j = requests.get(url, headers=H).json(); terr += [t["id"] for t in j["data"]]; url = j.get("links", {}).get("next")
+          inc = [{"type": "territoryAvailabilities", "id": "${t" + t + "}", "attributes": {"available": t == "BEL"},
+                  "relationships": {"territory": {"data": {"type": "territories", "id": t}}}} for t in terr]
           r = requests.post(B + "/v2/appAvailabilities", headers=H, json={
               "data": {"type": "appAvailabilities", "attributes": {"availableInNewTerritories": False}, "relationships": {
                   "app": {"data": {"type": "apps", "id": A}},
-                  "territoryAvailabilities": {"data": [{"type": "territoryAvailabilities", "id": "${bel}"}]}}},
-              "included": [{"type": "territoryAvailabilities", "id": "${bel}", "attributes": {"available": True},
-                  "relationships": {"territory": {"data": {"type": "territories", "id": "BEL"}}}}]})
+                  "territoryAvailabilities": {"data": [{"type": "territoryAvailabilities", "id": x["id"]} for x in inc]}}},
+              "included": inc + [{"type": "territories", "id": t} for t in terr]})
+          if r.status_code >= 300 and "territories" in r.text:
+              r = requests.post(B + "/v2/appAvailabilities", headers=H, json={
+                  "data": {"type": "appAvailabilities", "attributes": {"availableInNewTerritories": False}, "relationships": {
+                      "app": {"data": {"type": "apps", "id": A}},
+                      "territoryAvailabilities": {"data": [{"type": "territoryAvailabilities", "id": x["id"]} for x in inc]}}},
+                  "included": inc})
           note("PAYS", r.status_code, " | ".join(e.get("detail", "") for e in r.json().get("errors", []))[:700] if r.status_code >= 300 else "Belgique")
           d = requests.get(B + f"/v1/appInfos/{info}/ageRatingDeclaration", headers=H).json()["data"]["attributes"]
           note("AGE-RESTANT", [k for k, v in d.items() if v is None and k not in skip])
