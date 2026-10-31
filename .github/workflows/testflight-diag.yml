@@ -42,6 +42,12 @@ jobs:
           for b in bs:
               print("::notice::BUILD-GROUPE " + json.dumps(b["attributes"], ensure_ascii=False)[:700])
               show("BUILD-DETAIL", f"/builds/{b['id']}/buildBetaDetail")
+              show("BUILD-LOCALISATIONS", f"/builds/{b['id']}/betaBuildLocalizations")
           show("APP-ATTR", f"/apps/{A}")
           show("AVAILABILITY", f"/apps/{A}/appAvailabilityV2")
+          import re
+          for lang in ("fr-BE", "en-US"):
+              r = requests.get("https://testflight.apple.com/join/" + g["attributes"]["publicLinkId"], headers={"Accept-Language": lang, "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1"}, timeout=30)
+              t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"(?s)<(script|style).*?</\1>", " ", r.text)))
+              print("::notice::PAGE-LIEN " + lang + " " + str(r.status_code) + " " + t[:700])
           PY
