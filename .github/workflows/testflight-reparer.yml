@@ -32,6 +32,12 @@ jobs:
           print("::notice::CRITERES-CREATION", r.status_code, r.text[:500])
           r = requests.get(B + f"/betaGroups/{g['id']}/betaRecruitmentCriteria", headers=H)
           print("::notice::CRITERES-LECTURE", r.status_code, r.text[:400])
+          for b in requests.get(B + f"/betaGroups/{g['id']}/builds", headers=H).json()["data"]:
+              r = requests.post(B + "/buildBetaNotifications", headers=H, json={"data": {"type": "buildBetaNotifications", "relationships": {"build": {"data": {"type": "builds", "id": b["id"]}}}}})
+              print("::notice::NOTIFIER", b["attributes"]["version"], r.status_code, r.text[:300])
+              time.sleep(10)
+              d = requests.get(B + f"/builds/{b['id']}/buildBetaDetail", headers=H).json()["data"]["attributes"]
+              print("::notice::ETAT", b["attributes"]["version"], d.get("externalBuildState"))
           if os.environ.get("BASC") == "oui":
               for v in (False, True):
                   r = requests.patch(B + f"/betaGroups/{g['id']}", headers=H, json={"data": {"type": "betaGroups", "id": g["id"], "attributes": {"publicLinkEnabled": v}}})
