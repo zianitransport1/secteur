@@ -24,14 +24,18 @@ jobs:
           info = requests.get(B + f"/v1/apps/{A}/appInfos", headers=H).json()["data"][0]["id"]
           decl = requests.get(B + f"/v1/appInfos/{info}/ageRatingDeclaration", headers=H).json()["data"]
           skip = {"kidsAgeBand", "ageRatingOverride", "ageRatingOverrideV2", "koreaAgeRatingOverride", "developerAgeRatingInfoUrl"}
+          note("AGE-CHAMPS", {k: v for k, v in decl["attributes"].items()})
+          errs = []
           for k, v in decl["attributes"].items():
               if k in skip or v is not None: continue
-              ok = False
+              ok = False; last = ""
               for val in ("NONE", False):
                   r = requests.patch(B + f"/v1/ageRatingDeclarations/{decl['id']}", headers=H,
                       json={"data": {"type": "ageRatingDeclarations", "id": decl["id"], "attributes": {k: val}}})
                   if r.status_code < 300: ok = True; break
-              note("AGE", k, "OK" if ok else "ECHEC " + r.text[:200])
+                  last = " | ".join(e.get("detail", "") for e in r.json().get("errors", []))
+              if not ok: errs.append(k + ": " + last)
+          note("AGE-ERREURS", len(errs)); [note("AGE-ERR", e) for e in errs[:3]]
           # 2. Prix : gratuit
           pts = requests.get(B + f"/v1/apps/{A}/appPricePoints", headers=H, params={"filter[territory]": "USA", "limit": 200}).json()["data"]
           free = [p for p in pts if float(p["attributes"].get("customerPrice") or 0) == 0][0]
