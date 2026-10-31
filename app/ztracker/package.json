@@ -1,0 +1,8 @@
+{
+  "name": "ztracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GPS natif iPhone : enregistre et envoie les positions même écran verrouillé",
+  "main": "index.js",
+  "capacitor": { "ios": { "src": "ios" } }
+}

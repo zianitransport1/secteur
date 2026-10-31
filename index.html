@@ -514,7 +514,33 @@
   // GPS natif de l'app : continue écran verrouillé ou app en arrière-plan
   var BG = NATIVE && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('BackgroundGeolocation') : null, bgId = null;
   var LIVE_NATIVE = '● En tournée · tu peux verrouiller l’écran';
+  // iPhone : GPS natif de l'app (enregistre et envoie lui-même, même écran verrouillé)
+  var ZT = NATIVE && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios' && window.Capacitor.isPluginAvailable && window.Capacitor.isPluginAvailable('ZTracker')
+    ? window.Capacitor.registerPlugin('ZTracker') : null, ztSeq = 0, ztSubs = [];
+  function ztPoint(p){
+    if (!p || p.seq <= ztSeq) return; ztSeq = p.seq;
+    onPos({ coords: { latitude: p.lat, longitude: p.lon, accuracy: p.acc, speed: p.speed, heading: p.bearing }, timestamp: p.t, zt: true, keep: p.keep !== false });
+  }
+  function ztCatchUp(){
+    if (!ZT || watchId === null) return Promise.resolve();
+    return ZT.points({ after: ztSeq }).then(function(r){
+      var add = (r.points || []).filter(function(p){ return p.seq > ztSeq; });
+      add.forEach(function(p){ liveTrace().push([+(+p.lat).toFixed(6), +(+p.lon).toFixed(6)]); });
+      if (add.length) { trDirty = true; var l = add[add.length - 1]; lastPos = [l.lat, l.lon]; lastFix = Date.now(); }
+      ztSeq = Math.max(ztSeq, r.seq || 0);
+    }).catch(function(){});
+  }
+  function startZT(){
+    watchId = 'app';
+    ZT.addListener('pos', ztPoint).then(function(h){ ztSubs.push(h); });
+    ZT.addListener('error', function(e){ if (e && e.code === 'NOT_AUTHORIZED') { stop(true); setLive('Localisation refusée · voir réglages du téléphone', true); } else setLive('Signal GPS faible…', true); }).then(function(h){ ztSubs.push(h); });
+    ZT.start({ url: API, key: key }).catch(function(e){
+      stop(true); setLive('Localisation refusée · voir réglages du téléphone', true);
+      alert('La localisation est bloquée pour l’app.' + NL + NL + 'Réglages > Ziani Transport > Position > « Lorsque l’app est active » ou « Toujours ».');
+    });
+  }
   function startNative(){
+    if (ZT) return startZT();
     watchId = 'app';
     BG.addWatcher({ backgroundTitle: 'Ma tournée', backgroundMessage: 'Suivi de ta tournée en cours', requestPermissions: true, stale: false, distanceFilter: 5 },
       function(loc, err){
@@ -537,6 +563,10 @@
   }
   function onResume(){
     if (watchId === null || !map) return;
+    if (ZT) { ztCatchUp().then(function(){ if (watchId !== null) redrawNow(); }); return; }
+    redrawNow();
+  }
+  function redrawNow(){
     map.invalidateSize({ pan: false });
     if (lastPos && follow) map.setView(lastPos, map.getZoom(), { animate: false });
     if (streets.length) { lastDraw = Date.now(); drawAll(); } applyRot();
@@ -572,6 +602,12 @@
     else if (follow) map.panTo(pt, { animate: !document.hidden && (c.speed || 0) < 12, duration: 0.5 });
     applyRot();
     if (c.accuracy > 60) return;                       // signal moyen : la flèche bouge, mais on ne valide pas de rue
+    if (pos.zt) {                                      // iPhone : l'app a déjà filtré et envoyé le point
+      if (!pos.keep) return;
+      liveTrace().push([+pt[0].toFixed(6), +pt[1].toFixed(6)]); trDirty = true;
+      if (Date.now() - lastDraw > 8000 && streets.length) { lastDraw = Date.now(); drawAll(); }
+      setLive(LIVE_NATIVE); return;
+    }
     if (lastSent && dist(lastSent, pt) < 10 && pos.timestamp - lastSent.t < 60000) return;
     lastSent = pt; lastSent.t = pos.timestamp;
     queue.push({ lat: +pt[0].toFixed(6), lon: +pt[1].toFixed(6), acc: Math.round(c.accuracy), speed: c.speed || 0, t: pos.timestamp });
@@ -610,7 +646,8 @@
     keepAwake(); ls('on', 1); paused = false; lsDel('pause'); setCtrl('run');
   }
   function stop(silent){
-    if (BG) { if (bgId !== null) BG.removeWatcher({ id: bgId }); bgId = null; }
+    if (ZT) { if (watchId !== null) { ZT.stop().catch(function(){}); } ztSubs.forEach(function(h){ h.remove(); }); ztSubs = []; }
+    else if (BG) { if (bgId !== null) BG.removeWatcher({ id: bgId }); bgId = null; }
     else if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
     if (wakeLock) { wakeLock.release().catch(function(){}); wakeLock = null; }
