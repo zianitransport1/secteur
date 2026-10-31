@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=..
 rm -rf www && mkdir -p www/vendor
-cp "$ROOT/index.html" "$ROOT/icon-192.png" "$ROOT/icon-512.png" "$ROOT/manifest.webmanifest" "$ROOT/logo.png" "$ROOT/logo-blanc.png" www/
+cp "$ROOT/index.html" "$ROOT/admin.html" "$ROOT/icon-192.png" "$ROOT/icon-512.png" "$ROOT/manifest.webmanifest" "$ROOT/logo.png" "$ROOT/logo-blanc.png" www/
 
 CDN=https://cdnjs.cloudflare.com/ajax/libs
 curl -fsSL "$CDN/leaflet/1.9.4/leaflet.min.css" -o www/vendor/leaflet.min.css
@@ -17,6 +17,9 @@ for f in leaflet/1.9.4/leaflet.min.css leaflet/1.9.4/leaflet.min.js qrcode-gener
   sed -i.bak "s#$CDN/$f#vendor/$(basename "$f")#g" www/index.html
 done
 rm -f www/index.html.bak
+# La page admin charge Leaflet à la demande : même remplacement par les copies locales
+sed -i.bak "s#$CDN/leaflet/1.9.4/leaflet.min.css#vendor/leaflet.min.css#g; s#$CDN/leaflet/1.9.4/leaflet.min.js#vendor/leaflet.min.js#g" www/admin.html
+rm -f www/admin.html.bak
 
 if grep -q "cdnjs.cloudflare.com" www/index.html; then
   echo "Erreur : un lien CDN n'a pas été remplacé" >&2; exit 1

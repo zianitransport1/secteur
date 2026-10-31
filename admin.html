@@ -110,6 +110,7 @@
   var PAYE = 90, B10 = 95, B15 = 98;
   var $app = document.getElementById('app');
   function $(id){ return document.getElementById(id); }
+  var APPLI = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   function store(k, v){ try { if (v === undefined) return localStorage.getItem('adm_' + k); if (v === null) localStorage.removeItem('adm_' + k); else localStorage.setItem('adm_' + k, v); } catch (e) { return null; } }
   var tok = new URLSearchParams(location.search).get('t') || store('t') || '';
   if (new URLSearchParams(location.search).get('t')) { store('t', tok); history.replaceState(null, '', location.pathname); }
@@ -155,7 +156,7 @@
     if ($('list')) return;
     $app.innerHTML = '<header><div class="in"><img class="brand" src="logo-blanc.png" alt="Ziani Transport"><h1>Suivi des tournées <small id="sub"></small></h1>' +
       '<select class="wk" id="wk"></select><span class="live" id="live"><i></i><span id="liveT">En direct</span></span>' +
-      '<button class="btn" id="refresh">↻ Actualiser</button></div></header><main>' +
+      '<button class="btn" id="refresh">↻ Actualiser</button>' + (APPLI ? '<button class="btn" id="quitter">Mode chauffeur</button>' : '') + '</div></header><main>' +
       '<div class="tiles" id="tiles"></div>' +
       '<div class="tools"><div class="seg" id="seg"></div><select id="st"></select><input id="q" type="search" placeholder="Chercher un secteur ou un chauffeur"></div>' +
       '<div class="list" id="list"></div>' +
@@ -167,6 +168,7 @@
     $('wk').value = String(w);
     $('wk').onchange = function(e){ w = +e.target.value; data = null; load(true); };
     $('refresh').onclick = function(){ load(); };
+    if ($('quitter')) $('quitter').onclick = function(){ try { localStorage.removeItem('mt_admin'); } catch (e) {} location.href = 'index.html'; };
     $('q').oninput = function(e){ q = e.target.value.toLowerCase(); renderList(); };
     $('st').onchange = function(e){ st = e.target.value; store('st', st); renderList(); };
   }

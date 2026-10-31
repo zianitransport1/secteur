@@ -657,6 +657,11 @@
       'style="display:block;width:100%;margin:14px 0 4px;padding:14px;border:1px solid #cbd5e1;border-radius:12px;font-size:16px;color:#0f172a">',
       'Valider', function(){
         var v = (($('kIn') || {}).value || '').trim(), m = v.match(/[?&]k=([^&#\s]+)/);
+        // Lien de la page admin ou code administrateur : ouvre le suivi des tournées (admin) dans l'appli
+        if (/admin\.html/i.test(v) || /^zt-admin-/i.test(v)) {
+          try { localStorage.setItem('mt_admin', '1'); if (/^zt-admin-/i.test(v)) localStorage.setItem('adm_t', v); } catch (e) {}
+          location.href = 'admin.html'; return;
+        }
         var k = m ? decodeURIComponent(m[1]) : (/^[\w-]{4,}$/.test(v) ? v : '');
         if (!k) { alert('Lien non reconnu. Copie le lien complet reçu par message.'); return; }
         try { localStorage.setItem('mt_key', k); } catch (e) {}
@@ -664,7 +669,9 @@
       });
   }
 
-  if (!key && NATIVE) askKey();
+  var modeAdmin = false; try { modeAdmin = NATIVE && localStorage.getItem('mt_admin') === '1'; } catch (e) {}
+  if (!key && modeAdmin) location.href = 'admin.html';
+  else if (!key && NATIVE) askKey();
   else if (!key) msg('Lien incomplet.<br>Demande ton lien à ton responsable.');
   else { flush(true); loadHome(); }
 })();
