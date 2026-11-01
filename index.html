@@ -3,6 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<script>
+// Diagnostic : au lieu d'un écran vide, affiche l'erreur et l'envoie au serveur (visible dans n8n)
+(function(){
+  var sent = 0;
+  function show(m){
+    try {
+      var d = document.getElementById('zt-err') || document.createElement('div');
+      d.id = 'zt-err';
+      d.style.cssText = 'position:fixed;left:12px;right:12px;top:60px;z-index:99999;background:#fff;color:#b91c1c;font:13px/1.4 -apple-system,sans-serif;padding:14px;border-radius:12px;white-space:pre-wrap;word-break:break-word;box-shadow:0 4px 20px rgba(0,0,0,.3)';
+      d.textContent = (d.textContent || 'Problème dans l’appli — fais une capture d’écran et envoie-la à ton responsable :') + '\n\n' + m;
+      (document.body || document.documentElement).appendChild(d);
+    } catch (e) {}
+  }
+  function send(m){
+    if (sent++ >= 5) return;
+    try { fetch('https://ziani1.app.n8n.cloud/webhook/tournee-api', { method:'POST', headers:{ 'Content-Type':'text/plain' },
+      body: JSON.stringify({ a:'diag', k: (localStorage.getItem('mt_key') || ''), url: location.href, ua: navigator.userAgent, m: String(m).slice(0, 3000) }) }).catch(function(){}); } catch (e) {}
+  }
+  window.addEventListener('error', function(e){
+    if (!(e instanceof ErrorEvent)) return;   // images, tuiles de carte… ignorées
+    var m = (e.message || 'erreur') + ' @ ' + (e.filename || '') + ':' + (e.lineno || '') + ':' + (e.colno || '') + (e.error && e.error.stack ? '\n' + e.error.stack : '');
+    show(m); send(m);
+  });
+  window.addEventListener('unhandledrejection', function(e){ var r = e.reason; send('Promesse rejetée : ' + ((r && (r.stack || r.message)) || r)); });
+  setTimeout(function(){
+    if (document.querySelector('#msg.on,#home.on,#qr.on,#mapScreen.on,#cloture.on')) return;
+    var C = window.Capacitor, m = 'Écran vide après 10 s · Capacitor : ' + !!C + ' · plateforme : ' + (C && C.getPlatform ? C.getPlatform() : '-') +
+      ' · Leaflet : ' + (typeof L) + ' · QR : ' + (typeof qrcode) + ' · lien : ' + ((function(){ try { return localStorage.getItem('mt_key') ? 'oui' : 'non'; } catch (e) { return 'erreur stockage'; } })());
+    show(m); send(m);
+  }, 10000);
+})();
+</script>
 <meta name="theme-color" content="#0f172a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
