@@ -267,15 +267,25 @@
   }
   function loadHome(){
     msg('<div class="spin"></div>Chargement de tes secteurs…');
-    api({ a:'init' }).then(function(d){ data = d; ls('init', d); hideMsg(); renderHome(); show('home'); flushPend(); refreshEtats(); })
+    api({ a:'init' }).then(function(d){ data = d; ls('init', d); hideMsg(); renderHome(); show('home'); flushPend(); refreshEtats(); autoResume(); })
       .catch(function(e){
         if (e.message === 'lien') {
           if (NATIVE) return msg('Ce lien n’est pas valide.<br>Demande ton lien à ton responsable.', 'Saisir un autre lien', askKey);
           return msg('Ce lien n’est pas valide.<br>Demande ton lien à ton responsable.');
         }
-        var c = ls('init'); if (c) { data = c; hideMsg(); renderHome(); show('home'); return; }
+        var c = ls('init'); if (c) { data = c; hideMsg(); renderHome(); show('home'); autoResume(); return; }
         msg('Pas de connexion internet.', 'Réessayer', loadHome);
       });
+  }
+
+  // Reprise automatique : si une tournée était en cours (appli fermée par le téléphone, appel, redémarrage),
+  // le suivi redémarre tout seul et le secteur se rouvre, sans rien demander au chauffeur.
+  function autoResume(){
+    if (ls('on') !== wk() || watchId !== null || paused) return;
+    var id = ls('cur'), s = null;
+    ((data && data.secteurs) || []).forEach(function(x){ if (x.id === id && clos(x.id) == null) s = x; });
+    if (s) { cur = s; openMap(s); }
+    start();
   }
 
   // ================= 2. Rappel code QR =================
@@ -472,7 +482,7 @@
     if (cur && watchId !== null && pct !== lastProgPct && Date.now() - lastProg > 90000) sendProg('en cours');
   }
   function openMap(s){
-    initMap(); show('mapScreen');
+    initMap(); show('mapScreen'); ls('cur', s.id);
     $('who').textContent = s.nom; document.title = s.nom;
     $('status').textContent = data.chauffeur + ' · semaine ' + data.semaine;
     if (sectorLoaded === s.id) { drawAll(); return; }
@@ -572,10 +582,18 @@
     if (streets.length) { lastDraw = Date.now(); drawAll(); } applyRot();
   }
   document.addEventListener('visibilitychange', function(){
-    if (document.visibilityState === 'visible' && watchId !== null) { keepAwake(); onResume(); }
+    if (document.visibilityState === 'visible' && watchId === null && data) autoResume();
+    if (document.visibilityState === 'visible' && watchId !== null) { keepAwake(); onResume(); watchdog(); }
     if (document.visibilityState === 'hidden') { trDirty = true; saveLocal(); flush(true); }
   });
   addEventListener('pagehide', function(){ trDirty = true; saveLocal(); });
+  // Android : si le GPS natif ne renvoie plus rien depuis 3 min alors que la tournée tourne, on relance le suivi
+  function watchdog(){
+    if (!BG || ZT || watchId === null || !lastFix || Date.now() - lastFix < 180000) return;
+    if (bgId !== null) BG.removeWatcher({ id: bgId }); bgId = null; lastFix = Date.now();
+    startNative();
+  }
+  setInterval(watchdog, 60000);
   // flèche grise si plus de position depuis 20 s (au lieu de disparaître)
   var lastFix = 0;
   setInterval(function(){
@@ -633,7 +651,7 @@
         if (confirm('Pour que le suivi marche écran verrouillé :' + NL + NL + 'Dans les réglages qui vont s’ouvrir, touche « Batterie » puis choisis « Sans restriction » (ou « Non optimisée »).' + NL + NL + 'Ouvrir les réglages maintenant ?')) BG.openSettings();
       }
       setLive('Recherche du GPS…'); gotFix = false; follow = true;
-      startNative(); ls('on', 1); paused = false; lsDel('pause'); setCtrl('run');
+      startNative(); ls('on', wk()); paused = false; lsDel('pause'); setCtrl('run');
       return;
     }
     if (!navigator.geolocation) { alert('La localisation n’est pas disponible sur ce téléphone.'); return; }
@@ -643,7 +661,7 @@
         alert('La localisation est bloquée pour cette page.' + NL + NL + 'iPhone : Réglages > Confidentialité et sécurité > Service de localisation > Sites Safari (ou Safari) > « Lorsque l’app est active », puis recharge la page.' + NL + NL + 'Android : touche le cadenas à côté de l’adresse > Autorisations > Position > Autoriser.'); }
       else setLive('Signal GPS faible…', true);
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
-    keepAwake(); ls('on', 1); paused = false; lsDel('pause'); setCtrl('run');
+    keepAwake(); ls('on', wk()); paused = false; lsDel('pause'); setCtrl('run');
   }
   function stop(silent){
     if (ZT) { if (watchId !== null) { ZT.stop().catch(function(){}); } ztSubs.forEach(function(h){ h.remove(); }); ztSubs = []; }
