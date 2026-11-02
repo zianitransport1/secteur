@@ -41,7 +41,8 @@ jobs:
                       print("::notice::CRITERES", r.status_code, r.text[:600])
                   print("::notice::GROUPE-ATTR", {k: v for k, v in a.items() if k not in ("name",)})
           for b in get("/builds", **{"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 3})["data"]:
-              d = get(f"/builds/{b['id']}/buildBetaDetail")["data"]["attributes"]
+              try: d = get(f"/builds/{b['id']}/buildBetaDetail")["data"]["attributes"]
+              except Exception as e: print("::warning::BUILD-ETAT", b["attributes"].get("version"), e); continue
               print("::notice::BUILD-ETAT", b["attributes"].get("version"), d.get("externalBuildState"), d.get("internalBuildState"))
           for b in get("/builds", **{"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 5, "include": "preReleaseVersion,buildBetaDetail"})["data"]:
               a = b["attributes"]
