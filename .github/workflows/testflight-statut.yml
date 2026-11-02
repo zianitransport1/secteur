@@ -31,7 +31,8 @@ jobs:
                     "| lien public actif" if a.get("publicLinkEnabled") else "| lien public inactif", "|", a.get("publicLink") or "",
                     "| limite", a.get("publicLinkLimitEnabled"), a.get("publicLinkLimit"))
               if not a.get("isInternalGroup"):
-                  bs = get(f"/betaGroups/{g['id']}/builds")["data"]
+                  try: bs = get(f"/betaGroups/{g['id']}/builds")["data"]
+                  except Exception as e: print("::warning::GROUPE-BUILDS", e); continue
                   print("::notice::GROUPE-BUILDS", a.get("name"), [x["attributes"].get("version") for x in bs])
                   ts = get(f"/betaGroups/{g['id']}/betaTesters", limit=200)["data"]
                   print("::notice::GROUPE-TESTEURS", a.get("name"), len(ts))
