@@ -554,11 +554,14 @@
   function setLive(t, w){ var el = $('live'); el.textContent = t || ''; el.className = 'live' + (t ? ' on' : '') + (w ? ' warn' : ''); }
   function dist(a, b){ return Math.hypot((a[1]-b[1]) * KX, (a[0]-b[0]) * KY); }
   // GPS natif de l'app : continue écran verrouillé ou app en arrière-plan
-  var BG = NATIVE && window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('BackgroundGeolocation') : null, bgId = null;
+  // Modules natifs de l'appli (GPS en arrière-plan). Si le pont Capacitor est incomplet, on ne plante pas :
+  // on revient au GPS du navigateur.
+  function plug(n){ try { var C = window.Capacitor; return C && typeof C.registerPlugin === 'function' ? C.registerPlugin(n) : null; } catch (e) { return null; } }
+  var BG = NATIVE ? plug('BackgroundGeolocation') : null, bgId = null;
   var LIVE_NATIVE = '● En tournée · tu peux verrouiller l’écran';
   // iPhone : GPS natif de l'app (enregistre et envoie lui-même, même écran verrouillé)
   var ZT = NATIVE && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios' && window.Capacitor.isPluginAvailable && window.Capacitor.isPluginAvailable('ZTracker')
-    ? window.Capacitor.registerPlugin('ZTracker') : null, ztSeq = 0, ztSubs = [];
+    ? plug('ZTracker') : null, ztSeq = 0, ztSubs = [];
   function ztPoint(p){
     if (!p || p.seq <= ztSeq) return; ztSeq = p.seq;
     onPos({ coords: { latitude: p.lat, longitude: p.lon, accuracy: p.acc, speed: p.speed, heading: p.bearing }, timestamp: p.t, zt: true, keep: p.keep !== false });

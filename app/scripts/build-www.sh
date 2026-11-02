@@ -21,6 +21,13 @@ rm -f www/index.html.bak
 sed -i.bak "s#$CDN/leaflet/1.9.4/leaflet.min.css#vendor/leaflet.min.css#g; s#$CDN/leaflet/1.9.4/leaflet.min.js#vendor/leaflet.min.js#g" www/admin.html
 rm -f www/admin.html.bak
 
+# Capacitor (registerPlugin) : sans lui, les modules natifs (GPS écran verrouillé) ne sont pas accessibles depuis la page
+cp node_modules/@capacitor/core/dist/capacitor.js www/vendor/capacitor.js
+grep -q "registerPlugin" www/vendor/capacitor.js || { echo "Erreur : capacitor.js sans registerPlugin" >&2; exit 1; }
+sed -i.bak 's#<script src="vendor/leaflet.min.js"></script>#<script src="vendor/capacitor.js"></script><script src="vendor/leaflet.min.js"></script>#' www/index.html
+rm -f www/index.html.bak
+grep -q 'vendor/capacitor.js' www/index.html || { echo "Erreur : capacitor.js non inséré" >&2; exit 1; }
+
 if grep -q "cdnjs.cloudflare.com" www/index.html; then
   echo "Erreur : un lien CDN n'a pas été remplacé" >&2; exit 1
 fi
