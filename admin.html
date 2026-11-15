@@ -307,6 +307,30 @@
     });
     return { pct: tot ? Math.round(done / tot * 100) : 0, faites: nd };
   }
+  // Rues faites telles que le téléphone du chauffeur les a calculées (« v1;N;0.12.5.30|… »).
+  // Remplace le calcul de la carte quand il est disponible : l'admin voit exactement la carte du chauffeur.
+  function appliquerRues(streets, txt){
+    var m = /^v1;(\d+);([\s\S]*)$/.exec(txt || ''); if (!m || +m[1] !== streets.length) return null;
+    var parts = m[2].split('|'); if (parts.length !== streets.length) return null;
+    var res = [];
+    for (var i = 0; i < streets.length; i++) {
+      var s = streets[i], samp = [];
+      for (var j = 1; j < s.ll.length; j++) { var a = s.ll[j-1], b = s.ll[j], A = xy(a), B = xy(b), L0 = Math.hypot(B[0]-A[0], B[1]-A[1]), n = Math.max(1, Math.ceil(L0 / STEP));
+        for (var t = (j === 1 ? 0 : 1); t <= n; t++) { var f = t / n; samp.push({ ll: [a[0] + (b[0]-a[0]) * f, a[1] + (b[1]-a[1]) * f], x: A[0] + (B[0]-A[0]) * f, y: A[1] + (B[1]-A[1]) * f }); } }
+      var oks = [], ok = false; parts[i].split('.').forEach(function(c){ for (var k = +c || 0; k > 0; k--) oks.push(ok); ok = !ok; });
+      if (oks.length !== samp.length) return null;
+      res.push({ samp: samp, oks: oks });
+    }
+    var nd = 0;
+    res.forEach(function(r, i){
+      var Lt = 0, Ld = 0, runs = [], cur = null;
+      r.samp.forEach(function(p, k){ p.ok = r.oks[k];
+        if (k > 0) { var q = r.samp[k-1], d = Math.hypot(p.x - q.x, p.y - q.y); Lt += d; if (p.ok && q.ok) Ld += d; else if (p.ok || q.ok) Ld += d / 2; }
+        if (!cur || cur.ok !== p.ok) { if (cur) cur.c.push(p.ll); cur = { ok: p.ok, c: [p.ll] }; runs.push(cur); } else cur.c.push(p.ll); });
+      streets[i].runs = runs; if (Lt && Ld / Lt >= DONE) nd++;
+    });
+    return { faites: nd };
+  }
   function setFond(f){
     if (fonds[fond]) cmap.removeLayer(fonds[fond]); fond = f; fonds[f].addTo(cmap); $('cfond').textContent = f === 'sat' ? '🗺️' : '🛰️';
   }
@@ -336,12 +360,15 @@
   function cmsg(t){ var m = $('cmsg'); m.textContent = t || ''; m.classList.toggle('on', !!t); }
   function chargerCarte(){
     var s = carteS; if (!s) return;
-    call({ a:'carte', s: s.secteur, traccarId: s.traccarId || 0, w: w }).then(function(d){
+    call({ a:'carte', s: s.secteur, traccarId: s.traccarId || 0, chauffeurId: s.chauffeurId || '', cle: s.cle || '', w: w }).then(function(d){
       if (carteS !== s) return;
       gSec.clearLayers(); gTodo.clearLayers(); gDone.clearLayers(); gMe.clearLayers();
       if (!d.kml) { cmsg('Pas de carte KML pour ce secteur dans Notion.'); $('cpct').textContent = '–'; return; }
       cmsg('');
       var k = parseKml(d.kml), pts = (d.trace || []).map(function(p){ return [p[0], p[1]]; }), r = calc(k.streets, pts);
+      var rr = appliquerRues(k.streets, d.rues), pctCh = d.pct != null ? d.pct : s.pct;
+      if (rr) r.faites = rr.faites;
+      if (pctCh != null) r.pct = pctCh;   // toujours le chiffre affiché sur le téléphone du chauffeur
       if (k.poly) L.polygon(k.poly, { color:'#00c800', weight:4, fillColor:'#00c800', fillOpacity:.06, interactive:false }).addTo(gSec);
       k.streets.forEach(function(st){ st.runs.forEach(function(run){ if (run.c.length > 1)
         L.polyline(run.c, run.ok ? { pane:'pDone', color:'#16a34a', weight:11, opacity:1, lineCap:'round', lineJoin:'round' }
