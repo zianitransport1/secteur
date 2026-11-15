@@ -675,7 +675,18 @@
   function sendProg(etat, sur){
     if (!cur) return Promise.resolve();
     var pct = streets.length ? compute() : 0; lastProg = Date.now(); lastProgPct = pct;
-    return sendSuivi({ a:'prog', s: cur.id, nom: cur.nom, pct: pct, etat: etat }, sur);
+    var body = { a:'prog', s: cur.id, nom: cur.nom, pct: pct, etat: etat };
+    if (streets.length && sectorLoaded === cur.id) body.rues = encodeRues();
+    return sendSuivi(body, sur);
+  }
+  // Rues faites, exactement comme sur la carte du chauffeur, pour que l'admin voie la même chose.
+  // Par tronçon : longueurs alternées « pas fait / fait » des points de contrôle (tous les 8 m), ex. « 0.12.5.30 ».
+  function encodeRues(){
+    return 'v1;' + streets.length + ';' + streets.map(function(s){
+      var out = [], ok = false, n = 0;
+      (s.samp || []).forEach(function(p){ if (!!p.ok === ok) n++; else { out.push(n); ok = !ok; n = 1; } });
+      out.push(n); return out.join('.');
+    }).join('|');
   }
   function start(){
     sendProg('en cours');
