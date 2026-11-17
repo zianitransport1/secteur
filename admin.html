@@ -93,6 +93,16 @@
   .cbtn{position:absolute;right:12px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:500;width:46px;height:46px;border-radius:14px;border:0;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.2);font-size:20px;cursor:pointer}
   .cmsg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:600;background:#fff;border-radius:14px;padding:14px 18px;box-shadow:0 6px 24px rgba(0,0,0,.2);font-size:15px;display:none}
   .cmsg.on{display:block}
+  .tps{display:block;color:var(--ink);font-size:12px;margin-top:3px}
+  .tps strong{color:var(--blue)}
+  .plbox{background:#fff;border-radius:14px;padding:12px 14px;margin:8px 0;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+  .plbox pre{white-space:pre-wrap;font-family:inherit;font-size:14px;margin:6px 0 10px;background:var(--soft);border-radius:10px;padding:10px}
+  .plg{margin-top:10px}
+  .plg h3{font-size:14px;margin:12px 0 6px;color:var(--mut)}
+  .pla{background:#fff;border-radius:12px;padding:9px 12px;display:flex;align-items:center;gap:10px;margin-top:6px;box-shadow:0 1px 3px rgba(15,23,42,.06);font-size:14px}
+  .pla span{flex:1;min-width:0}
+  .pla small{display:block;color:var(--mut);font-size:12px}
+  .pla .x{border:0;background:var(--soft);border-radius:8px;width:32px;height:32px;cursor:pointer;flex:none}
   @media (max-width:760px){
     .tiles{grid-template-columns:repeat(2,1fr)}
     .row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n act" "c c" "p p";gap:8px}
@@ -162,7 +172,13 @@
       '<div class="list" id="list"></div>' +
       '<details class="libres" id="libresBox"><summary id="libresT"></summary><div class="hint" id="libresH"></div><div id="libres"></div></details>' +
       '<h2>Bonus de couverture</h2><div class="hint">Activé = le chauffeur voit les seuils 95 % (bonus 10 %) et 98 % (bonus 15 %) en clôturant. Le paiement à 90 % s’applique à tout le monde.</div>' +
-      '<div class="drivers" id="drivers"></div></main>';
+      '<div class="drivers" id="drivers"></div>' +
+      '<h2>Adresses à plainte</h2><div class="hint">Importe la capture d’écran du tableau de plaintes envoyée par un coach : les adresses s’ajoutent dans l’appli des chauffeurs (📸 photo une seule fois, puis ⚠️ rappel à chaque passage, alerte à 50 m).</div>' +
+      '<div class="tools"><label class="btn blue" style="cursor:pointer">📷 Importer une capture<input type="file" id="plImg" accept="image/*" hidden></label><input id="plQ" type="search" placeholder="Chercher une adresse ou un secteur"></div>' +
+      '<div id="plRes"></div><div class="plg" id="plList"><div class="hint">Chargement…</div></div></main>';
+    $('plImg').onchange = function(){ var f = this.files && this.files[0]; this.value = ''; if (f) importer(f); };
+    $('plQ').oninput = function(e){ plQ = e.target.value.toLowerCase(); renderPlaintes(); };
+    chargerPlaintes();
     $('wk').innerHTML = WEEKS.map(function(o){ var s = semaineDe(o);
       return '<option value="' + o + '">Semaine ' + s.n + (o === 1 ? ' · à venir' : o === 0 ? ' · en cours' : '') + ' (' + s.du + ' → ' + s.au + ')</option>'; }).join('');
     $('wk').value = String(w);
@@ -229,7 +245,7 @@
         ? '<select class="' + (s.modifie ? 'mod' : '') + '" data-s="' + s.secteur + '" data-nom="' + esc(s.nom) + '" data-mod="' + (s.modifie ? 1 : 0) + '">' +
             (s.modifie ? '<option value="__defaut">↺ Habituel : ' + esc(s.habituel || 'personne') + '</option>' : '') + optionsChauffeurs(s.chauffeurId) + '</select>'
         : esc(s.chauffeur);
-      return '<div class="row"><div class="n" data-i="' + i + '"><b>' + esc(s.nom) + (s.remplacement ? ' <span class="tag t-pause">Remplacement</span>' : '') + '</b><small>' + esc(s.sousTraitant || '') + (s.kml ? '' : (s.sousTraitant ? ' · ' : '') + 'pas de carte') + '</small></div>' +
+      return '<div class="row"><div class="n" data-i="' + i + '"><b>' + esc(s.nom) + (s.remplacement ? ' <span class="tag t-pause">Remplacement</span>' : '') + '</b><small>' + esc(s.sousTraitant || '') + (s.kml ? '' : (s.sousTraitant ? ' · ' : '') + 'pas de carte') + '</small>' + ligneTemps(s) + '</div>' +
         '<div class="c">' + ch + '<small>' + (s.bonus ? '<span class="tag t-bonus" style="margin:4px 4px 0 0">Bonus</span>' : '') + (s.modifie ? '<span class="tag t-mod" style="margin:4px 4px 0 0">Changé cette semaine</span>' : '') + (s.maj ? ago(s.maj) : '') + '</small></div>' +
         '<div class="p"><span class="tag ' + e[1] + '">' + e[0] + '</span><div class="bar"><i style="width:' + (p || 0) + '%;background:' + couleur(p) + '"></i></div><b style="color:' + couleur(p) + '">' + (p == null ? '–' : p + ' %') + '</b></div>' +
         '<div class="act">' + (s.etat === 'clos' ? '<button class="btn blue" data-cle="' + esc(s.cle) + '" data-nom="' + esc(s.nom) + '" data-ch="' + esc(s.chauffeur) + '">Rouvrir</button>' : '') + '</div></div>';
@@ -238,6 +254,65 @@
     Array.prototype.forEach.call(el.querySelectorAll('.c select'), function(sel){ sel.onchange = function(){ affecter(sel); }; });
     Array.prototype.forEach.call(el.querySelectorAll('.n'), function(n){ n.onclick = function(){ ouvrirCarte(L[+n.dataset.i]); }; });
   }
+  // ---- Temps des secteurs (admins seulement) : début, fin, durée sans les pauses, boîtes par heure (BAL du secteur) ----
+  var PLUS = 'https://ziani1.app.n8n.cloud/webhook/tournee-plus', temps = {}, tempsW = null;
+  function plusCall(body){
+    body.t = tok;
+    return fetch(PLUS, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify(body), cache:'no-store' })
+      .then(function(r){ if (!r.ok) throw new Error('serveur'); return r.json(); });
+  }
+  function chargerTemps(){
+    var ww = w;
+    plusCall({ a:'temps_admin', w: ww }).then(function(d){ if (ww !== w) return; temps = {}; tempsW = ww;
+      (d.temps || []).forEach(function(t){ temps[t.secteur + '|' + t.chauffeurId] = t; }); if (data && $('list')) renderList(); }).catch(function(){});
+  }
+  var JOURS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
+  function hm(iso){ var d = new Date(iso); return JOURS[d.getDay()] + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  function duree(min){ var h = Math.floor(min / 60), m = min % 60; return h ? h + ' h' + (m ? ' ' + ('0' + m).slice(-2) : '') : m + ' min'; }
+  function ligneTemps(s){
+    var t = tempsW === w ? temps[s.secteur + '|' + s.chauffeurId] : null;
+    if (!t || !t.debut) return '';
+    var fini = !!t.fin, bh = s.bal && t.actifMin > 0 ? Math.round(s.bal / (t.actifMin / 60)) : null;
+    return '<span class="tps">⏱ ' + hm(t.debut) + ' → ' + (fini ? hm(t.fin).replace(hm(t.debut).split(' ')[0] + ' ', '') : 'en cours') +
+      ' · ' + duree(t.actifMin) + (t.pauseMin ? ' (+' + duree(t.pauseMin) + ' de pause)' : '') + (fini && bh ? ' · <strong>' + bh + ' boîtes/h</strong>' : '') + '</span>';
+  }
+
+  // ---- Adresses à plainte ----
+  var plaintes = null, plQ = '';
+  function chargerPlaintes(){ plusCall({ a:'liste' }).then(function(d){ plaintes = d.plaintes || []; renderPlaintes(); })
+    .catch(function(){ $('plList').innerHTML = '<div class="hint">Liste indisponible (connexion).</div>'; }); }
+  function renderPlaintes(){
+    if (!plaintes || !$('plList')) return;
+    var L = plaintes.filter(function(p){ return !plQ || (p.secteur + ' ' + p.adr).toLowerCase().indexOf(plQ) >= 0; }), g = {};
+    L.forEach(function(p){ (g[p.secteur] = g[p.secteur] || []).push(p); });
+    var ks = Object.keys(g).sort();
+    $('plList').innerHTML = ks.length ? ks.map(function(k){
+      return '<h3>' + esc(k) + ' · ' + g[k].length + '</h3>' + g[k].map(function(p){
+        return '<div class="pla"><b>' + (p.photo ? '📸' : '⚠️') + '</b><span>' + esc(p.adr) + '<small>Semaines ' + esc(p.semaines) + (p.statut ? ' · ' + esc(p.statut) : '') +
+          (p.photo ? ' · photo à prendre' : p.photoLe ? ' · photo prise par ' + esc(p.photoPar) : '') + (p.gps ? '' : ' · pas de position GPS (pas d’alerte à 50 m)') + '</small></span>' +
+          '<button class="x" data-c="' + esc(p.cle) + '" data-a="' + esc(p.adr) + '" title="Retirer">✕</button></div>'; }).join('');
+    }).join('') : '<div class="hint">' + (plQ ? 'Aucune adresse trouvée.' : 'Aucune adresse à plainte pour l’instant.') + '</div>';
+    Array.prototype.forEach.call(document.querySelectorAll('#plList .x'), function(b){ b.onclick = function(){
+      if (!confirm('Retirer « ' + b.dataset.a + ' » des adresses à plainte ?')) return;
+      b.disabled = true; plusCall({ a:'retirer', cle: b.dataset.c }).then(function(){ toast('Adresse retirée'); chargerPlaintes(); }).catch(function(){ b.disabled = false; toast('Échec, réessaie'); }); }; });
+  }
+  function reduire(f){
+    return new Promise(function(ok, ko){ var u = URL.createObjectURL(f), im = new Image();
+      im.onload = function(){ var m = 2200, k = Math.min(1, m / Math.max(im.width, im.height)), c = document.createElement('canvas');
+        c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u); ok(c.toDataURL('image/jpeg', 0.9)); };
+      im.onerror = ko; im.src = u; });
+  }
+  function importer(f){
+    $('plRes').innerHTML = '<div class="plbox">Lecture de la capture… (≈ 20 s)</div>';
+    reduire(f).then(function(img){ return plusCall({ a:'import', image: img }); }).then(function(r){
+      $('plRes').innerHTML = '<div class="plbox"><b>' + (r.total ? '✅ ' + r.total + ' adresse' + (r.total > 1 ? 's' : '') + ' (' + r.nouvelles + ' nouvelle' + (r.nouvelles > 1 ? 's' : '') + ')' : '⚠️ Rien de lu') + '</b>' +
+        '<div class="hint" style="margin:6px 0 0">Message de confirmation pour le coach (néerlandais) :</div><pre id="plMsg"></pre><button class="btn" id="plCopy">Copier le message</button></div>';
+      $('plMsg').textContent = r.message || '';
+      $('plCopy').onclick = function(){ var t = r.message || ''; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function(){ toast('Message copié'); }).catch(function(){ toast('Copie impossible'); }); };
+      setTimeout(chargerPlaintes, 1500); setTimeout(chargerPlaintes, 45000);
+    }).catch(function(){ $('plRes').innerHTML = '<div class="plbox">❌ La capture n’a pas pu être lue. Réessaie.</div>'; });
+  }
+
   function affecter(sel){
     var v = sel.value, nom = sel.dataset.nom, body;
     if (v === '__defaut') body = { a:'defaut', s: sel.dataset.s, w: w };
@@ -398,7 +473,7 @@
     if (!tok) return login();
     if (busy) return; busy = true;
     if (first || !data) { if (!$('list')) $app.innerHTML = '<div class="login" style="text-align:center"><img class="brand" src="logo.png" alt=""><br>Chargement…</div>'; else $('list').innerHTML = '<div class="empty">Chargement de la semaine…</div>'; }
-    call({ a:'admin', w: w }).then(function(d){ data = d; render(); var l = $('live'); l.className = 'live'; $('liveT').textContent = w === 0 ? 'En direct · actualisé toutes les 30 s' : 'Historique'; })
+    call({ a:'admin', w: w }).then(function(d){ data = d; render(); chargerTemps(); var l = $('live'); l.className = 'live'; $('liveT').textContent = w === 0 ? 'En direct · actualisé toutes les 30 s' : 'Historique'; })
       .catch(function(e){
         if (e.message === 'code') { store('t', null); tok = ''; return login(true); }
         if (!data && !$('list')) { $app.innerHTML = '<div class="login" style="text-align:center">Pas de connexion au serveur.<br><br><button class="btn blue" id="re">Réessayer</button></div>'; $('re').onclick = function(){ load(true); }; }

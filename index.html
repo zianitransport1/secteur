@@ -153,6 +153,31 @@
   .msg button{border:0;border-radius:12px;padding:12px 18px;font-size:15px;font-weight:700;background:#fff;color:var(--ink)}
   .spin{width:34px;height:34px;border-radius:50%;border:4px solid #334155;border-top-color:#fff;animation:sp 1s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
+  /* ---- Dépôt, itinéraire, plaintes ---- */
+  .depot{background:#1e293b;border-radius:14px;padding:12px 14px;margin:14px 0 4px;text-align:left;font-size:15px}
+  .depot small{display:block;color:#94a3b8;font-size:12px;margin-bottom:2px}
+  .two{display:flex;gap:8px;margin:8px 0 2px}
+  .two button{flex:1;border:0;border-radius:12px;padding:12px 8px;font-size:15px;font-weight:700;background:#334155;color:#fff}
+  .two button.b{background:var(--blue)}
+  .plinfo{background:#fef3c7;color:#92400e;border-radius:12px;padding:10px 12px;margin:8px 0 0;font-size:14px;font-weight:600;text-align:left}
+  .tag.pl{background:#fef3c7;color:#92400e}
+  .acts{display:flex;gap:6px;margin-top:8px}
+  .acts button{flex:1;border:0;border-radius:10px;padding:8px 4px;font-size:13px;font-weight:700;background:#f1f5f9;color:var(--ink);white-space:nowrap}
+  .acts button.w{background:#fef3c7;color:#92400e}
+  .acts button.r{background:#fee2e2;color:#991b1b}
+  .modal .pli{display:flex;align-items:center;gap:10px;padding:11px 2px;border-top:1px solid #f1f5f9;font-size:15px}
+  .modal .pli span{flex:1}
+  .modal .pli small{display:block;color:var(--mut);font-size:12px}
+  .modal .pli button{border:0;border-radius:10px;padding:9px 12px;font-weight:800;background:#fee2e2;color:#991b1b;font-size:14px}
+  .modal .lst{max-height:50vh;overflow:auto;margin:6px 0}
+  .modal .mot{display:block;width:100%;text-align:left;border:1px solid #e2e8f0;background:#fff;border-radius:12px;padding:13px;margin:6px 0;font-size:15px;font-weight:600}
+  .modal .mot.on{border-color:var(--blue);background:#eff6ff}
+  .modal select,.modal textarea{width:100%;border:1px solid #cbd5e1;border-radius:12px;padding:11px;font-size:15px;margin:6px 0;font-family:inherit;background:#fff}
+  #near{position:fixed;left:10px;right:10px;top:calc(150px + env(safe-area-inset-top));z-index:700;background:#fbbf24;color:#0f172a;border-radius:16px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.3);display:none}
+  #near.on{display:block}
+  #near b{display:block;font-size:17px}
+  #near .two button{background:#0f172a}
+  .plm{font-size:20px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
 </style>
 </head>
 <body>
@@ -174,6 +199,7 @@
     <div class="warn">📱 Scanne ce code QR avec ton PDA avant de commencer</div>
     <h2 id="qName"></h2>
     <div class="sub2" id="qInfo"></div>
+    <div id="qExtra"></div>
     <div id="qBody"></div>
     <button class="big" id="qOk">✅ J’ai bien scanné le code QR</button>
   </div>
@@ -197,7 +223,9 @@
     <div class="live" id="live"></div>
     <div class="bar"><i id="bar"></i></div>
     <div class="legend"><span><b style="background:var(--pink)"></b>À faire</span><span><b style="background:var(--green)"></b>Fait</span><span><b style="background:var(--sector)"></b>Secteur</span></div>
+    <div class="acts"><button id="aPl" class="w">⚠️ Plaintes</button><button id="aNav">🚗 Itinéraire</button><button id="aSouci">📣 Souci</button></div>
   </div>
+  <div id="near"><b id="nearT"></b><div id="nearS"></div><div class="two"><button id="nearPh">📸 Photo</button><button id="nearOk">OK, compris</button></div></div>
   <div class="sheet closed" id="sheet">
     <div class="grab" id="grab"><div class="handle"></div>
     <h3>Rues <span id="rest"></span><em id="arrow">▲</em></h3></div>
@@ -219,6 +247,7 @@
   <button class="bt g" id="cBack">Continuer la tournée</button>
   <button class="bt k" id="cOk">Clôturer quand même</button>
 </div></div>
+<div class="modal" id="mod"><div class="box" id="modBox"></div></div>
 
 <script>
 (function(){
@@ -270,6 +299,232 @@
       .then(function(r){ if (r.status === 404) throw new Error('lien'); if (!r.ok) throw new Error('serveur'); return r.json(); });
   }
 
+  // ================= Dépôt, itinéraire, adresses à plainte, temps =================
+  var PLUS = 'https://ziani1.app.n8n.cloud/webhook/tournee-plus';
+  function plus(body){
+    body.k = key;
+    return fetch(PLUS, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify(body), cache:'no-store' })
+      .then(function(r){ if (!r.ok) throw new Error('serveur'); return r.json(); });
+  }
+  // même écriture des noms de secteurs que le serveur (« Eksel 03 » = « EKSEL 3 »)
+  function norm(s){ return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\(.*?\)/g, ' ')
+    .replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter(Boolean).map(function(t){ return /^\d+[A-Z0-9]*$/.test(t) ? t.replace(/^0+(?=\d)/, '') : t; }).join(' '); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+  var extra = null;
+  function getExtra(){ if (!extra) extra = ls('extra') || { plaintes: [], depots: {} }; return extra; }
+  function loadExtra(){
+    if (!data || !data.secteurs.length) return;
+    var noms = [], nums = [];
+    data.secteurs.forEach(function(s){ noms.push(s.nom); if (s.bon) noms.push(s.bon); if (s.num) nums.push(s.num); });
+    plus({ a:'plaintes', noms: noms, nums: nums }).then(function(d){
+      extra = { plaintes: d.plaintes || [], depots: d.depots || {} }; ls('extra', extra);
+      if ($('home').classList.contains('on')) renderHome();
+      if ($('qr').classList.contains('on') && cur) fillQrExtra(cur);
+      if (map && sectorLoaded) drawPlaintes();
+    }).catch(function(){});
+  }
+  function depotDe(s){ return s && s.num ? getExtra().depots[s.num] || '' : ''; }
+  var photoFaite = null;
+  function photoOk(){ if (!photoFaite) photoFaite = ls('photoOk') || {}; return photoFaite; }
+  function plaintesDe(s){
+    if (!s) return [];
+    var a = norm(s.nom), b = norm(s.bon || ''), ok = photoOk();
+    return getExtra().plaintes.filter(function(p){ return p.secteurNorm === a || (b && p.secteurNorm === b); })
+      .map(function(p){ return { cle: p.cle, adr: p.adr, secteur: p.secteur, lat: p.lat, lon: p.lon, photo: p.photo && !ok[p.cle] }; })
+      .sort(function(x, y){ return (y.photo - x.photo) || x.adr.localeCompare(y.adr); });
+  }
+  function plTexte(s){
+    var L = plaintesDe(s), ph = L.filter(function(p){ return p.photo; }).length;
+    return L.length ? '⚠️ ' + L.length + ' adresse' + (L.length > 1 ? 's' : '') + ' à plainte' + (ph ? ' · 📸 ' + ph + ' photo' + (ph > 1 ? 's' : '') + ' à prendre' : '') : '';
+  }
+
+  // ---- Itinéraire (Google Maps, Waze ou Plans) ----
+  function ouvrir(url){ var w = window.open(url, '_blank'); if (!w && !NATIVE) location.href = url; }
+  function itineraire(titre, dest){   // dest = { lat, lon } ou { q: 'adresse' }
+    var ll = dest.q ? null : dest.lat + ',' + dest.lon, q = dest.q ? encodeURIComponent(dest.q) : '';
+    choix(titre, [
+      ['Google Maps', function(){ ouvrir('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + (ll || q)); }],
+      ['Waze', function(){ ouvrir(ll ? 'https://waze.com/ul?navigate=yes&ll=' + ll : 'https://waze.com/ul?navigate=yes&q=' + q); }],
+      ['Plans (Apple)', function(){ ouvrir('https://maps.apple.com/?dirflg=d&daddr=' + (ll || q)); }]
+    ]);
+  }
+  function allerDepot(s){ var d = depotDe(s); if (!d) return; itineraire('Aller au ' + d, { q: 'BD Media ' + d.replace(/^d[ée]p[oô]t\s*/i, 'Depot ') + ', Belgique' }); }
+  // point d'arrivée : le point du secteur le plus proche du centre des rues (dans une rue, pas dans un champ)
+  function centreSecteur(d){
+    var k = parseKml(d.kml || ''), pts = [];
+    k.streets.forEach(function(st){ st.ll.forEach(function(p){ pts.push(p); }); });
+    if (!pts.length && k.poly) pts = k.poly;
+    if (!pts.length) return null;
+    var c = [0, 0]; pts.forEach(function(p){ c[0] += p[0]; c[1] += p[1]; }); c = [c[0] / pts.length, c[1] / pts.length];
+    var best = pts[0], bd = Infinity; pts.forEach(function(p){ var x = dist(p, c); if (x < bd) { bd = x; best = p; } });
+    return { lat: +best[0].toFixed(6), lon: +best[1].toFixed(6) };
+  }
+  function allerTournee(s){
+    var go = function(d){ hideMsg(); var c = centreSecteur(d); if (!c) return alert('La carte de ce secteur n’est pas encore disponible.'); itineraire('Aller sur ' + s.nom, c); };
+    var c = ls('map_' + wk() + '_' + s.id); if (c) return go(c);
+    msg('<div class="spin"></div>Recherche du secteur…');
+    api({ a:'sector', s: s.id }).then(function(d){ ls('map_' + wk() + '_' + s.id, d); go(d); })
+      .catch(function(){ msg('Pas de connexion internet.', 'OK', hideMsg); });
+  }
+  function fillQrExtra(s){
+    var d = depotDe(s), t = plTexte(s), h = '';
+    if (d) h += '<div class="depot"><small>🏭 Dépôt (d’après le bon BD Media)</small><b></b></div>';
+    h += '<div class="two">' + (d ? '<button id="qDep">🏭 Aller au dépôt</button>' : '') + '<button class="b" id="qNav">🚗 Aller sur la tournée</button></div>';
+    if (t) h += '<div class="plinfo"></div>';
+    $('qExtra').innerHTML = h;
+    if (d) $('qExtra').querySelector('.depot b').textContent = d;
+    if (t) $('qExtra').querySelector('.plinfo').textContent = t;
+    if ($('qDep')) $('qDep').onclick = function(){ allerDepot(s); };
+    $('qNav').onclick = function(){ allerTournee(s); };
+  }
+
+  // ---- Fenêtre générique ----
+  function modal(html){ $('modBox').innerHTML = html; $('mod').classList.add('on'); }
+  function fermer(){ $('mod').classList.remove('on'); }
+  $('mod').addEventListener('click', function(e){ if (e.target === $('mod')) fermer(); });
+  function choix(titre, opts){
+    modal('<h4></h4>' + opts.map(function(o, i){ return '<button class="bt ' + (i ? 'k' : 'g') + '" data-i="' + i + '"></button>'; }).join('') + '<button class="bt k" data-x="1">Annuler</button>');
+    $('modBox').querySelector('h4').textContent = titre;
+    Array.prototype.forEach.call($('modBox').querySelectorAll('button[data-i]'), function(b){ var o = opts[+b.dataset.i]; b.textContent = o[0]; b.onclick = function(){ fermer(); o[1](); }; });
+    $('modBox').querySelector('[data-x]').onclick = fermer;
+  }
+
+  // ---- Photo + envoi dans le groupe WhatsApp ----
+  var SHARE = NATIVE ? plug2('Share') : null, FS = NATIVE ? plug2('Filesystem') : null, HAP = NATIVE ? plug2('Haptics') : null;
+  function plug2(n){ try { var C = window.Capacitor; return C && C.isPluginAvailable && C.isPluginAvailable(n) && typeof C.registerPlugin === 'function' ? C.registerPlugin(n) : null; } catch (e) { return null; } }
+  function prendrePhoto(){
+    return new Promise(function(ok){
+      var i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.setAttribute('capture', 'environment');
+      i.style.display = 'none'; document.body.appendChild(i);
+      i.onchange = function(){ var f = i.files && i.files[0]; i.remove(); if (f) ok(f); };
+      i.click();
+    }).then(function(f){
+      return new Promise(function(ok, ko){
+        var u = URL.createObjectURL(f), im = new Image();
+        im.onload = function(){ var m = 1600, s = Math.min(1, m / Math.max(im.width, im.height)), c = document.createElement('canvas');
+          c.width = Math.round(im.width * s); c.height = Math.round(im.height * s); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(u); ok(c.toDataURL('image/jpeg', 0.8)); };
+        im.onerror = function(){ ko(new Error('photo')); }; im.src = u;
+      });
+    });
+  }
+  function partager(dataUrl, texte){
+    var b64 = dataUrl.split(',')[1];
+    if (SHARE && FS) return FS.writeFile({ path: 'ziani-' + Date.now() + '.jpg', data: b64, directory: 'CACHE' })
+      .then(function(r){ return SHARE.share({ text: texte, files: [r.uri], dialogTitle: 'Envoyer dans le groupe' }); });
+    try {
+      var bin = atob(b64), arr = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      var f = new File([arr], 'photo.jpg', { type: 'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) return navigator.share({ files: [f], text: texte });
+    } catch (e) {}
+    ouvrir('https://wa.me/?text=' + encodeURIComponent(texte));
+    return Promise.resolve();
+  }
+  function annule(e){ return /cancel|abort|annul/i.test(String((e && (e.message || e.name)) || e)); }
+  function quand(){ var d = new Date(); return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  function photoPlainte(p){
+    if (!cur) return;
+    prendrePhoto().then(function(img){
+      var t = '📍 ' + cur.nom + ' · ' + p.adr + NL + '📸 Klachtadres · geleverd / adresse à plainte · livré' + NL + '👤 ' + (data.chauffeur || '') + ' · ' + quand();
+      return partager(img, t).then(function(){
+        var ok = photoOk(); ok[p.cle] = Date.now(); ls('photoOk', ok);
+        plus({ a:'photo', cle: p.cle }).catch(function(){});
+        $('near').classList.remove('on'); drawPlaintes(); if ($('mod').classList.contains('on')) ouvrirPlaintes();
+      });
+    }).catch(function(e){ if (!annule(e)) alert('La photo n’a pas pu être envoyée. Réessaie.'); });
+  }
+  function ouvrirPlaintes(){
+    var L = plaintesDe(cur);
+    modal('<h4>Adresses à plainte</h4><div class="sub">Livre bien à ces adresses. 📸 = une photo à envoyer dans le groupe (une seule fois).</div><div class="lst">' +
+      (L.length ? L.map(function(p, i){ return '<div class="pli" data-i="' + i + '"><span><b></b><small>' + (p.photo ? 'Photo à prendre' : 'Fais attention à chaque passage') + '</small></span>' +
+        (p.photo ? '<button data-p="' + i + '">📸 Photo</button>' : '<em>⚠️</em>') + '</div>'; }).join('') : '<div class="sub" style="padding:14px 0">Aucune plainte pour ce secteur. 👍</div>') +
+      '</div><button class="bt k" data-x="1">Fermer</button>');
+    Array.prototype.forEach.call($('modBox').querySelectorAll('.pli'), function(el){ var p = L[+el.dataset.i];
+      el.querySelector('b').textContent = p.adr;
+      el.querySelector('span').onclick = function(){ if (p.lat != null && map) { fermer(); setOpen(false); follow = false; if (navOn) setNav(false); map.setView([p.lat, p.lon], 19); } };
+      var b = el.querySelector('button[data-p]'); if (b) b.onclick = function(){ photoPlainte(p); }; });
+    $('modBox').querySelector('[data-x]').onclick = fermer;
+  }
+  var MOTIFS = [['Straat niet bereikbaar', 'Rue infaisable'], ['Wegenwerken', 'Travaux'], ['Ander probleem', 'Autre souci']];
+  function ouvrirSouci(){
+    if (!cur) return;
+    var noms = {}; streets.forEach(function(s){ noms[s.name] = 1; });
+    var m = 0;
+    modal('<h4>Signaler un souci</h4><div class="sub">La photo et le message partent dans le groupe WhatsApp.</div>' +
+      MOTIFS.map(function(x, i){ return '<button class="mot' + (i ? '' : ' on') + '" data-m="' + i + '">' + esc(x[1]) + ' · ' + esc(x[0]) + '</button>'; }).join('') +
+      '<select id="sRue"><option value="">Rue (facultatif)</option>' + Object.keys(noms).sort().map(function(n){ return '<option>' + esc(n) + '</option>'; }).join('') + '</select>' +
+      '<textarea id="sTxt" rows="2" placeholder="Précision (facultatif)"></textarea>' +
+      '<button class="bt g" id="sPh">📸 Photo + envoyer</button><button class="bt k" id="sSans">Envoyer sans photo</button><button class="bt k" data-x="1">Annuler</button>');
+    Array.prototype.forEach.call($('modBox').querySelectorAll('.mot'), function(b){ b.onclick = function(){ m = +b.dataset.m;
+      Array.prototype.forEach.call($('modBox').querySelectorAll('.mot'), function(x){ x.classList.toggle('on', x === b); }); }; });
+    function texte(){ var r = $('sRue').value, n = $('sTxt').value.trim();
+      return '⚠️ ' + MOTIFS[m][0] + ' / ' + MOTIFS[m][1] + NL + '📍 ' + cur.nom + (r ? ' · ' + r : '') + (n ? NL + '💬 ' + n : '') + NL + '👤 ' + (data.chauffeur || '') + ' · ' + quand(); }
+    $('sPh').onclick = function(){ var t = texte(); fermer(); prendrePhoto().then(function(img){ return partager(img, t); }).catch(function(e){ if (!annule(e)) alert('Envoi impossible. Réessaie.'); }); };
+    $('sSans').onclick = function(){ var t = texte(); fermer();
+      if (SHARE) SHARE.share({ text: t, dialogTitle: 'Envoyer dans le groupe' }).catch(function(){}); else ouvrir('https://wa.me/?text=' + encodeURIComponent(t)); };
+    $('modBox').querySelector('[data-x]').onclick = fermer;
+  }
+
+  // ---- Sur la carte : repères des adresses à plainte + alerte à 50 m ----
+  var gPl = null;
+  function drawPlaintes(){
+    if (!map || !cur) return;
+    if (!gPl) { map.createPane('pPl').style.zIndex = 620; gPl = L.layerGroup().addTo(map); }
+    gPl.clearLayers();
+    var Lp = plaintesDe(cur);
+    Lp.forEach(function(p){ if (p.lat == null) return;
+      L.marker([p.lat, p.lon], { pane: 'pPl', icon: L.divIcon({ className: '', iconSize: [24, 24], iconAnchor: [12, 12], html: '<div class="plm">' + (p.photo ? '📸' : '⚠️') + '</div>' }) })
+        .bindTooltip(p.adr).on('click', function(){ if (p.photo) photoPlainte(p); }).addTo(gPl); });
+    var ph = Lp.filter(function(p){ return p.photo; }).length;
+    $('aPl').textContent = '⚠️ Plaintes' + (Lp.length ? ' (' + Lp.length + ')' : '');
+    $('aPl').className = ph ? 'r' : 'w';
+  }
+  var proche = null;
+  function verifierProche(pt){
+    if (!cur || document.hidden || !pt) return;
+    var vus = ls('near_' + wk()) || {}, now = Date.now(), hit = null, hd = 0;
+    plaintesDe(cur).forEach(function(p){ if (p.lat == null || (vus[p.cle] && now - vus[p.cle] < 6 * 3600e3)) return;
+      var d = dist([p.lat, p.lon], pt); if (d <= 50 && (!hit || d < hd)) { hit = p; hd = d; } });
+    if (!hit) return;
+    vus[hit.cle] = now; ls('near_' + wk(), vus); proche = hit;
+    $('nearT').textContent = '⚠️ Adresse à plainte : ' + hit.adr;
+    $('nearS').textContent = 'À ' + Math.round(hd) + ' m · livre bien dans la boîte.' + (hit.photo ? ' Une photo est demandée.' : '');
+    $('nearPh').style.display = hit.photo ? '' : 'none';
+    var top = document.querySelector('.top'); $('near').style.top = (top.getBoundingClientRect().bottom + 8) + 'px';
+    $('near').classList.add('on');
+    try { if (HAP) HAP.vibrate({ duration: 600 }); else if (navigator.vibrate) navigator.vibrate([300, 150, 300]); } catch (e) {}
+    clearTimeout(verifierProche.t); verifierProche.t = setTimeout(function(){ $('near').classList.remove('on'); }, 30000);
+  }
+  $('nearOk').onclick = function(){ $('near').classList.remove('on'); };
+  $('nearPh').onclick = function(){ if (proche) photoPlainte(proche); };
+  $('aPl').onclick = function(){ ouvrirPlaintes(); };
+  $('aNav').onclick = function(){ if (cur) allerTournee(cur); };
+  $('aSouci').onclick = function(){ ouvrirSouci(); };
+
+  // ---- Temps du secteur (admin) : début, fin, pauses = arrêt de plus de 10 min sans bouger de 30 m ----
+  var PAUSE_MS = 10 * 60000, BOUGE_M = 30, TT = null, TTid = null, lastTemps = 0;
+  function tKey(id){ return 'tps_' + wk() + '_' + id; }
+  function tObj(){ if (!cur) return null; if (TTid !== cur.id) { TTid = cur.id; TT = ls(tKey(cur.id)); } return TT; }
+  function tStart(){
+    if (!cur) return; var T = tObj(), now = Date.now();
+    if (!T) { T = TT = { d: now, p: 0, a: null, at: now, f: 0 }; }
+    T.f = 0; ls(tKey(cur.id), T);
+  }
+  function tPoint(pt, t){
+    var T = tObj(); if (!T || T.f || !pt) return; t = t || Date.now();
+    if (!T.a || dist(T.a, pt) > BOUGE_M) {
+      if (T.at && t - T.at > PAUSE_MS) T.p += t - T.at;
+      T.a = [pt[0], pt[1]]; T.at = t; ls(tKey(cur.id), T);
+    }
+  }
+  function tFin(){ var T = tObj(); if (!T) return; var now = Date.now(); if (T.at && now - T.at > PAUSE_MS) T.p += now - T.at; T.at = now; T.f = now; ls(tKey(cur.id), T); }
+  function sendTemps(force){
+    var T = tObj(); if (!T || !cur) return;
+    if (!force && Date.now() - lastTemps < 120000) return; lastTemps = Date.now();
+    var fin = T.f || 0, bout = (fin || Date.now()) - T.d - T.p;
+    plus({ a:'temps', s: cur.id, nom: cur.nom, debut: T.d, fin: fin, pauseMin: Math.round(T.p / 60000), actifMin: Math.max(0, Math.round(bout / 60000)) }).catch(function(){});
+  }
+
   // ================= 1. Liste des secteurs =================
   var data = null, cur = null;
   function wk(){ return data ? data.annee + '-' + data.semaine : ''; }
@@ -287,7 +542,9 @@
       if (s.remplacement) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag rep">Remplacement</span>');
       if (cp != null) { b.className = 'card locked'; b.querySelector('.ic').textContent = '✅'; b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag done">Clôturé</span>'); if (cp >= 0) p = cp; }
       else if (ls('scan_' + wk() + '_' + s.id)) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag ok">QR scanné</span>');
-      b.querySelector('small').textContent = (s.boites ? s.boites + ' boîtes' : 'Pas de bon BD Media cette semaine') + (s.kml ? '' : ' · carte pas encore disponible');
+      var dep = depotDe(s), npl = plaintesDe(s).length;
+      b.querySelector('small').textContent = (s.boites ? s.boites + ' boîtes' : 'Pas de bon BD Media cette semaine') + (dep ? ' · 🏭 ' + dep : '') + (s.kml ? '' : ' · carte pas encore disponible');
+      if (npl && cp == null) b.querySelector('b').insertAdjacentHTML('beforeend', '<span class="tag pl">⚠️ ' + npl + '</span>');
       b.querySelector('.pc').textContent = p != null ? p + ' %' : '›';
       b.onclick = function(){
         var c = clos(s.id);
@@ -299,7 +556,7 @@
   }
   function loadHome(){
     msg('<div class="spin"></div>Chargement de tes secteurs…');
-    api({ a:'init' }).then(function(d){ data = d; ls('init', d); hideMsg(); renderHome(); show('home'); flushPend(); refreshEtats(); autoResume(); })
+    api({ a:'init' }).then(function(d){ data = d; ls('init', d); hideMsg(); renderHome(); show('home'); flushPend(); refreshEtats(); autoResume(); loadExtra(); })
       .catch(function(e){
         if (e.message === 'lien') {
           if (NATIVE) return msg('Ce lien n’est pas valide.<br>Demande ton lien à ton responsable.', 'Saisir un autre lien', askKey);
@@ -325,6 +582,7 @@
     cur = s;
     $('qName').textContent = s.nom;
     $('qInfo').textContent = 'Semaine ' + data.semaine + (s.num ? ' · secteur ' + s.num : '') + (s.boites ? ' · ' + s.boites + ' boîtes' : '');
+    fillQrExtra(s);
     var body = $('qBody');
     if (s.code && window.qrcode) {
       var q = qrcode(0, 'M'); q.addData(s.code); q.make();
@@ -529,10 +787,10 @@
     serverPts = (d.trace || []).map(function(p){ return [p[0], p[1]]; });
     gSector.clearLayers(); gStreets.clearLayers(); gTrace.clearLayers();
     if (!d.kml) { streets = []; sectorPoly = null; $('pct').textContent = '–'; $('cnt').textContent = ''; $('rest').textContent = '';
-      $('list').innerHTML = ''; setLive('La carte de ce secteur n’est pas encore dans Notion · ton trajet est quand même enregistré', true); return; }
+      $('list').innerHTML = ''; drawPlaintes(); setLive('La carte de ce secteur n’est pas encore dans Notion · ton trajet est quand même enregistré', true); return; }
     var k = parseKml(d.kml); sectorPoly = k.poly; streets = prepareStreets(k.streets);
     if (sectorPoly) L.polygon(sectorPoly, { color:'#00c800', weight:4, fillColor:'#00c800', fillOpacity:.06 }).addTo(gSector);
-    drawAll();
+    drawAll(); drawPlaintes();
     var b = sectorPoly ? L.polygon(sectorPoly).getBounds() : (streets.length ? L.polyline(streets.map(function(s){ return s.ll; })).getBounds() : null);
     if (b && first && watchId === null) { map.fitBounds(b, { padding:[20, 20] }); first = false; }
     if (watchId === null && !ls('on')) setLive('');
@@ -570,7 +828,7 @@
     if (!ZT || watchId === null) return Promise.resolve();
     return ZT.points({ after: ztSeq }).then(function(r){
       var add = (r.points || []).filter(function(p){ return p.seq > ztSeq; });
-      add.forEach(function(p){ liveTrace().push([+(+p.lat).toFixed(6), +(+p.lon).toFixed(6)]); });
+      add.forEach(function(p){ liveTrace().push([+(+p.lat).toFixed(6), +(+p.lon).toFixed(6)]); tPoint([+p.lat, +p.lon], p.t); });
       if (add.length) { trDirty = true; var l = add[add.length - 1]; lastPos = [l.lat, l.lon]; lastFix = Date.now(); }
       ztSeq = Math.max(ztSeq, r.seq || 0);
     }).catch(function(){});
@@ -655,6 +913,7 @@
     else if (follow) map.panTo(pt, { animate: !document.hidden && (c.speed || 0) < 12, duration: 0.5 });
     applyRot();
     if (c.accuracy > 60) return;                       // signal moyen : la flèche bouge, mais on ne valide pas de rue
+    tPoint(pt, pos.timestamp || Date.now()); verifierProche(pt);
     if (pos.zt) {                                      // iPhone : l'app a déjà filtré et envoyé le point
       if (!pos.keep) return;
       liveTrace().push([+pt[0].toFixed(6), +pt[1].toFixed(6)]); trDirty = true;
@@ -675,9 +934,11 @@
   function sendProg(etat, sur){
     if (!cur) return Promise.resolve();
     var pct = streets.length ? compute() : 0; lastProg = Date.now(); lastProgPct = pct;
+    sendTemps(etat !== 'en cours');
     return sendSuivi({ a:'prog', s: cur.id, nom: cur.nom, pct: pct, etat: etat }, sur);
   }
   function start(){
+    tStart();
     sendProg('en cours');
     if (BG) {
       var ANDROID = window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'android';
@@ -752,6 +1013,7 @@
     $('cloture').classList.remove('on');
     var pct = streets.length ? compute() : null;
     stop(true); paused = false; lsDel('pause'); lsDel('on'); setCtrl('idle');
+    tFin();
     if (cur) { ls('clos_' + wk() + '_' + cur.id, pct == null ? -1 : pct); etatsSrv[cur.id] = { s: cur.id, etat: 'clos', pct: pct == null ? -1 : pct }; ls('etats', etatsSrv); }
     sendProg('clos', true);
     setLive(''); if (navOn) setNav(false);

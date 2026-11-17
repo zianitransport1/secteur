@@ -14,6 +14,9 @@ set_key() { # set_key <clé> <type> <valeur>
 set_key CFBundleDisplayName string "Ziani Transport"
 set_key NSLocationWhenInUseUsageDescription string "Ta position sert à tracer ta tournée sur la carte et à indiquer les rues déjà faites."
 set_key NSLocationAlwaysAndWhenInUseUsageDescription string "Ta position continue d’être suivie pendant la tournée, même écran verrouillé, pour que les rues faites soient bien comptées."
+set_key NSCameraUsageDescription string "L’appareil photo sert à photographier une adresse à plainte ou un souci sur le secteur, pour l’envoyer dans le groupe."
+set_key NSPhotoLibraryUsageDescription string "Pour choisir une photo d’une adresse à plainte ou d’un souci sur le secteur."
+set_key NSPhotoLibraryAddUsageDescription string "Pour enregistrer la photo envoyée dans le groupe."
 set_key ITSAppUsesNonExemptEncryption bool false
 $PB -c "Delete :UIBackgroundModes" "$PLIST" 2>/dev/null || true
 $PB -c "Add :UIBackgroundModes array" "$PLIST"
