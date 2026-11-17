@@ -15,6 +15,10 @@ on:
         description: "Numéro de version affiché (ex. 1.0)"
         required: true
         default: "1.0"
+      mac:
+        description: "Mac GitHub (macos-latest, ou macos-15-intel si les Mac M sont saturés)"
+        required: false
+        default: "macos-latest"
 
 concurrency:
   group: ios-testflight
@@ -22,7 +26,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: ${{ inputs.mac || 'macos-latest' }}
     timeout-minutes: 60
     defaults:
       run:
