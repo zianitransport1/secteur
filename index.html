@@ -348,7 +348,20 @@
       ['Plans (Apple)', function(){ ouvrir('https://maps.apple.com/?dirflg=d&daddr=' + (ll || q)); }]
     ]);
   }
-  function allerDepot(s){ var d = depotDe(s); if (!d) return; itineraire('Aller au ' + d, { q: 'BD Media ' + d.replace(/^d[ée]p[oô]t\s*/i, 'Depot ') + ', Belgique' }); }
+  // Adresses des dépôts BD Media (nom tel qu'écrit sur le bon → adresse)
+  var DEPOTS = {
+    'merelbeke': 'Van Laetestraat 4, 9820 Merelbeke-Melle',
+    'dad': 'Avenue des Ménestrels 33, 1070 Anderlecht',
+    'bruxelles/brussel': 'Avenue de Vilvorde 178, 1130 Bruxelles',
+    'peer': 'Kiezel Kleine Brogel 39, 3990 Peer',
+    'wommelgem': 'Kapelstraat 108, 2160 Wommelgem',
+    'leuven': 'Valgaten 5, 3020 Herent'
+  };
+  var DEPOT_NOTE = { 'leuven': 'Entrepôt, unité 13' };
+  function depotCle(d){ return String(d || '').toLowerCase().replace(/^d[ée]p[oô]t\s*/, '').trim(); }
+  function adresseDepot(d){ return DEPOTS[depotCle(d)] || ''; }
+  function allerDepot(s){ var d = depotDe(s); if (!d) return; var a = adresseDepot(d);
+    itineraire('Aller au ' + d, { q: a ? a + ', Belgique' : 'BD Media ' + d + ', Belgique' }); }
   // point d'arrivée : le point du secteur le plus proche du centre des rues (dans une rue, pas dans un champ)
   function centreSecteur(d){
     var k = parseKml(d.kml || ''), pts = [];
@@ -372,7 +385,10 @@
     h += '<div class="two">' + (d ? '<button id="qDep">🏭 Aller au dépôt</button>' : '') + '<button class="b" id="qNav">🚗 Aller sur la tournée</button></div>';
     if (t) h += '<div class="plinfo"></div>';
     $('qExtra').innerHTML = h;
-    if (d) $('qExtra').querySelector('.depot b').textContent = d;
+    if (d) { var ad = adresseDepot(d), nt = DEPOT_NOTE[depotCle(d)];
+      $('qExtra').querySelector('.depot b').textContent = d;
+      if (ad) $('qExtra').querySelector('.depot').insertAdjacentHTML('beforeend', '<small style="margin:3px 0 0;color:#cbd5e1"></small>'),
+        $('qExtra').querySelector('.depot small:last-child').textContent = ad + (nt ? ' · ' + nt : ''); }
     if (t) $('qExtra').querySelector('.plinfo').textContent = t;
     if ($('qDep')) $('qDep').onclick = function(){ allerDepot(s); };
     $('qNav').onclick = function(){ allerTournee(s); };
