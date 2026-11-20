@@ -1078,8 +1078,17 @@
     if (cur) { ls('clos_' + wk() + '_' + cur.id, pct == null ? -1 : pct); etatsSrv[cur.id] = { s: cur.id, etat: 'clos', pct: pct == null ? -1 : pct }; ls('etats', etatsSrv); }
     sendProg('clos', true);
     setLive(''); if (navOn) setNav(false);
+    var nomClos = cur ? cur.nom : '';
     renderHome(); show('home');
+    // Dernière étape : la photo du PDA au bot WhatsApp, qui enregistre la prestation
+    modal('<h4>✅ Secteur clôturé</h4><div class="sub"></div>' +
+      '<div class="plinfo">📲 <b>Dernière étape :</b> envoie la photo de l’écran de ton <b>PDA</b> (secteur et semaine bien visibles) au <b>bot WhatsApp</b> pour enregistrer ta prestation.</div>' +
+      '<button class="bt g" id="botGo">💬 Ouvrir le bot WhatsApp</button><button class="bt k" data-x="1">OK</button>');
+    $('modBox').querySelector('.sub').textContent = nomClos ? nomClos + ' · sans cette photo, la prestation n’est pas enregistrée.' : 'Sans cette photo, la prestation n’est pas enregistrée.';
+    $('botGo').onclick = function(){ ouvrir('https://wa.me/' + BOT_WA); fermer(); };
+    $('modBox').querySelector('[data-x]').onclick = fermer;
   };
+  var BOT_WA = '212603989457';   // numéro du bot WhatsApp des prestations
   $('me').onclick = function(){ follow = true; if (lastPos) map.setView(lastPos, navOn ? 18 : 17); };
   setInterval(function(){ flush(false); }, 30000);
   window.addEventListener('online', function(){ flush(true); flushPend(); });
