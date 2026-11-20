@@ -1058,13 +1058,20 @@
       a('ok', '✅ ' + PAYE + ' % atteint : le secteur sera payé.');
       if (bonus && pct >= BONUS15) a('ok', '🏆 Bonus de 15 % gagné.');
     }
+    // Photo obligatoire : pas de clôture tant qu'une adresse à plainte du secteur attend sa photo
+    manquePhoto = plaintesDe(cur).filter(function(p){ return p.photo; });
+    if (manquePhoto.length) al.unshift('<div class="al red">📸 <b>Clôture impossible</b> : il manque la photo de ' +
+      manquePhoto.map(function(p){ return '<b>' + esc(p.adr) + '</b>'; }).join(', ') + '. Envoie-la d’abord à ton coach.</div>');
     $('cAl').innerHTML = al.join('');
-    $('cOk').textContent = pct != null && pct < PAYE ? 'Clôturer quand même' : 'Clôturer le secteur';
+    $('cOk').textContent = manquePhoto.length ? '📸 Envoyer la photo (' + manquePhoto[0].adr + ')' : (pct != null && pct < PAYE ? 'Clôturer quand même' : 'Clôturer le secteur');
+    $('cOk').className = manquePhoto.length ? 'bt g' : 'bt k';
     $('cloture').classList.add('on');
   }
   $('cBack').onclick = function(){ $('cloture').classList.remove('on'); };
+  var manquePhoto = [];
   $('cOk').onclick = function(){
     $('cloture').classList.remove('on');
+    if (manquePhoto.length) { photoPlainte(manquePhoto[0]); return; }
     var pct = streets.length ? compute() : null;
     stop(true); paused = false; lsDel('pause'); lsDel('on'); setCtrl('idle');
     tFin();
