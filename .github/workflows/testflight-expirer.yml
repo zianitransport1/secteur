@@ -1,0 +1,52 @@
+# Retire des builds TestFlight (en attente ou dépassés) : les sort du groupe externe et les fait expirer.
+# mode « voir » : liste seulement l'état des derniers builds, sans rien changer.
+name: TestFlight expirer builds
+on:
+  workflow_dispatch:
+    inputs:
+      builds:
+        description: "Numéros de build à retirer, séparés par des virgules (ex. 26,27,28)"
+        default: ""
+      mode:
+        description: "voir ou expirer"
+        default: "voir"
+jobs:
+  e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          KID: ${{ secrets.ASC_KEY_ID }}
+          ISS: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8 }}
+          BUILDS: ${{ inputs.builds }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import os, time, jwt, requests
+          tok = jwt.encode({"iss": os.environ["ISS"], "iat": int(time.time()), "exp": int(time.time()) + 600, "aud": "appstoreconnect-v1"},
+                           os.environ["P8"], algorithm="ES256", headers={"kid": os.environ["KID"], "typ": "JWT"})
+          H = {"Authorization": "Bearer " + tok, "Content-Type": "application/json"}
+          B = "https://api.appstoreconnect.apple.com/v1"
+          def get(p, **q): r = requests.get(B + p, headers=H, params=q, timeout=30); r.raise_for_status(); return r.json()
+          app = get("/apps", **{"filter[bundleId]": "com.zianitransport.matournee"})["data"][0]
+          builds = get("/builds", **{"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 12, "include": "betaAppReviewSubmission,buildBetaDetail"})
+          inc = {(x["type"], x["id"]): x for x in builds.get("included", [])}
+          ext = next(x for x in get(f"/apps/{app['id']}/betaGroups")["data"] if not x["attributes"]["isInternalGroup"])
+          dans = {x["id"] for x in get(f"/betaGroups/{ext['id']}/builds", limit=50)["data"]}
+          for b in builds["data"]:
+              a = b["attributes"]; rel = b.get("relationships", {})
+              sub = (rel.get("betaAppReviewSubmission", {}) or {}).get("data")
+              rs = inc.get(("betaAppReviewSubmissions", sub["id"]), {}).get("attributes", {}).get("betaReviewState") if sub else None
+              bd = (rel.get("buildBetaDetail", {}) or {}).get("data")
+              ext_state = inc.get(("buildBetaDetails", bd["id"]), {}).get("attributes", {}).get("externalBuildState") if bd else None
+              print("::notice::BUILD", a["version"], "expiré" if a.get("expired") else "actif", "| vérif:", rs, "| externe:", ext_state, "| groupe:", b["id"] in dans)
+          if os.environ.get("MODE") == "expirer":
+              voulus = {x.strip() for x in os.environ.get("BUILDS", "").split(",") if x.strip()}
+              for b in builds["data"]:
+                  if b["attributes"]["version"] not in voulus: continue
+                  r1 = requests.delete(B + f"/betaGroups/{ext['id']}/relationships/builds", headers=H, json={"data": [{"type": "builds", "id": b["id"]}]}, timeout=30)
+                  r2 = requests.patch(B + f"/builds/{b['id']}", headers=H, json={"data": {"type": "builds", "id": b["id"], "attributes": {"expired": True}}}, timeout=30)
+                  print("::notice::RETIRE", b["attributes"]["version"], "groupe", r1.status_code, "expiré", r2.status_code, r2.text[:150])
+          PY
