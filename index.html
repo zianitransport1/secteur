@@ -177,6 +177,8 @@
   #near.on{display:block}
   #near b{display:block;font-size:17px}
   #near .two button{background:#0f172a}
+  .modal .etp{margin:8px 0 10px;padding-left:22px;font-size:15px;line-height:1.45}
+  .modal .etp li{margin:4px 0}
   .plm{font-size:20px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
 </style>
 </head>
@@ -315,14 +317,16 @@
   function loadExtra(){
     if (!data || !data.secteurs.length) return;
     var noms = [], nums = [];
-    data.secteurs.forEach(function(s){ noms.push(s.nom); if (s.bon) noms.push(s.bon); if (s.num) nums.push(s.num); });
-    plus({ a:'plaintes', noms: noms, nums: nums }).then(function(d){
-      extra = { plaintes: d.plaintes || [], depots: d.depots || {} }; ls('extra', extra);
+    var ids = [];
+    data.secteurs.forEach(function(s){ noms.push(s.nom); if (s.bon) noms.push(s.bon); if (s.num) nums.push(s.num); ids.push(s.id); });
+    plus({ a:'plaintes', noms: noms, nums: nums, ids: ids }).then(function(d){
+      extra = { plaintes: d.plaintes || [], depots: d.depots || {}, coachs: d.coachs || {} }; ls('extra', extra);
       if ($('home').classList.contains('on')) renderHome();
       if ($('qr').classList.contains('on') && cur) fillQrExtra(cur);
       if (map && sectorLoaded) drawPlaintes();
     }).catch(function(){});
   }
+  function coachDe(s){ return s ? (getExtra().coachs || {})[s.id] || null : null; }
   function depotDe(s){ return s && s.num ? getExtra().depots[s.num] || '' : ''; }
   var photoFaite = null;
   function photoOk(){ if (!photoFaite) photoFaite = ls('photoOk') || {}; return photoFaite; }
@@ -438,16 +442,41 @@
   }
   function annule(e){ return /cancel|abort|annul/i.test(String((e && (e.message || e.name)) || e)); }
   function quand(){ var d = new Date(); return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  // Envoi au coach du secteur, en privé : WhatsApp s'ouvre sur sa discussion avec le message déjà écrit,
+  // le chauffeur envoie le message puis la photo (📷 dans WhatsApp), et confirme dans l'appli.
+  function envoyerAuCoach(titre, etapes, texte, quoi, apres){
+    var c = coachDe(cur), nom = c && c.tel ? c.nom : '';
+    modal('<h4></h4><div class="sub">Le message part en privé ' + (nom ? 'à ton coach <b></b>' : 'à ton coach') + '.</div>' +
+      '<ol class="etp">' + etapes.map(function(e){ return '<li></li>'; }).join('') + '</ol>' +
+      '<div class="plinfo" style="white-space:pre-line;font-weight:500"></div>' +
+      '<button class="bt g" id="eGo">💬 Ouvrir WhatsApp' + (nom ? ' de ' + esc(nom) : '') + '</button><button class="bt k" data-x="1">Annuler</button>');
+    var bx = $('modBox');
+    bx.querySelector('h4').textContent = titre;
+    if (nom) bx.querySelector('.sub b').textContent = nom;
+    Array.prototype.forEach.call(bx.querySelectorAll('.etp li'), function(li, i){ li.textContent = etapes[i]; });
+    bx.querySelector('.plinfo').textContent = texte;
+    bx.querySelector('[data-x]').onclick = fermer;
+    $('eGo').onclick = function(){
+      ouvrir('https://wa.me/' + (c && c.tel ? c.tel : '') + '?text=' + encodeURIComponent(texte));
+      modal('<h4></h4><div class="sub">Confirme une fois le message <b>et la photo</b> envoyés.</div><button class="bt g" id="eOk">✅ Oui, c’est envoyé</button><button class="bt k" id="eRe">💬 Rouvrir WhatsApp</button><button class="bt k" data-x="1">Pas encore</button>');
+      $('modBox').querySelector('h4').textContent = 'As-tu envoyé ' + quoi + (nom ? ' à ' + nom : ' au coach') + ' ?';
+      $('eOk').onclick = function(){ fermer(); if (apres) apres(); };
+      $('eRe').onclick = function(){ ouvrir('https://wa.me/' + (c && c.tel ? c.tel : '') + '?text=' + encodeURIComponent(texte)); };
+      $('modBox').querySelector('[data-x]').onclick = fermer;
+    };
+  }
   function photoPlainte(p){
     if (!cur) return;
-    prendrePhoto().then(function(img){
-      var t = '📍 ' + cur.nom + ' · ' + p.adr + NL + '📸 Klachtadres · geleverd / adresse à plainte · livré' + NL + '👤 ' + (data.chauffeur || '') + ' · ' + quand();
-      return partager(img, t).then(function(){
-        var ok = photoOk(); ok[p.cle] = Date.now(); ls('photoOk', ok);
-        plus({ a:'photo', cle: p.cle }).catch(function(){});
-        $('near').classList.remove('on'); drawPlaintes(); if ($('mod').classList.contains('on')) ouvrirPlaintes();
-      });
-    }).catch(function(e){ if (!annule(e)) alert('La photo n’a pas pu être envoyée. Réessaie.'); });
+    var t = '📸 Klachtadres – ' + cur.nom + NL + '📍 ' + p.adr + NL + '✅ Folder geleverd: brievenbus met huisnummer zichtbaar' + NL + '👤 ' + (data.chauffeur || '') + ' · ' + quand();
+    envoyerAuCoach('Photo de l’adresse à plainte', [
+      'WhatsApp s’ouvre sur la discussion avec ton coach, le message est déjà écrit : envoie-le.',
+      'Touche 📷 et photographie la boîte aux lettres : le numéro de la maison bien visible et la pub à moitié dedans.',
+      'Envoie la photo, puis reviens ici pour confirmer.'
+    ], t, 'la photo', function(){
+      var ok = photoOk(); ok[p.cle] = Date.now(); ls('photoOk', ok);
+      plus({ a:'photo', cle: p.cle }).catch(function(){});
+      $('near').classList.remove('on'); drawPlaintes();
+    });
   }
   function ouvrirPlaintes(){
     var L = plaintesDe(cur);
@@ -466,18 +495,21 @@
     if (!cur) return;
     var noms = {}; streets.forEach(function(s){ noms[s.name] = 1; });
     var m = 0;
-    modal('<h4>Signaler un souci</h4><div class="sub">La photo et le message partent dans le groupe WhatsApp.</div>' +
+    modal('<h4>Signaler un souci</h4><div class="sub">Le message et la photo partent en privé à ton coach.</div>' +
       MOTIFS.map(function(x, i){ return '<button class="mot' + (i ? '' : ' on') + '" data-m="' + i + '">' + esc(x[1]) + ' · ' + esc(x[0]) + '</button>'; }).join('') +
       '<select id="sRue"><option value="">Rue (facultatif)</option>' + Object.keys(noms).sort().map(function(n){ return '<option>' + esc(n) + '</option>'; }).join('') + '</select>' +
       '<textarea id="sTxt" rows="2" placeholder="Précision (facultatif)"></textarea>' +
-      '<button class="bt g" id="sPh">📸 Photo + envoyer</button><button class="bt k" id="sSans">Envoyer sans photo</button><button class="bt k" data-x="1">Annuler</button>');
+      '<button class="bt g" id="sPh">📸 Envoyer au coach (avec photo)</button><button class="bt k" data-x="1">Annuler</button>');
     Array.prototype.forEach.call($('modBox').querySelectorAll('.mot'), function(b){ b.onclick = function(){ m = +b.dataset.m;
       Array.prototype.forEach.call($('modBox').querySelectorAll('.mot'), function(x){ x.classList.toggle('on', x === b); }); }; });
     function texte(){ var r = $('sRue').value, n = $('sTxt').value.trim();
-      return '⚠️ ' + MOTIFS[m][0] + ' / ' + MOTIFS[m][1] + NL + '📍 ' + cur.nom + (r ? ' · ' + r : '') + (n ? NL + '💬 ' + n : '') + NL + '👤 ' + (data.chauffeur || '') + ' · ' + quand(); }
-    $('sPh').onclick = function(){ var t = texte(); fermer(); prendrePhoto().then(function(img){ return partager(img, t); }).catch(function(e){ if (!annule(e)) alert('Envoi impossible. Réessaie.'); }); };
-    $('sSans').onclick = function(){ var t = texte(); fermer();
-      if (SHARE) SHARE.share({ text: t, dialogTitle: 'Envoyer dans le groupe' }).catch(function(){}); else ouvrir('https://wa.me/?text=' + encodeURIComponent(t)); };
+      return '⚠️ ' + MOTIFS[m][0] + ' / ' + MOTIFS[m][1] + NL + '📍 ' + cur.nom + (r ? ' · ' + r : '') + (n ? NL + '💬 ' + n : '') + NL + '📸 Foto volgt' + NL + '👤 ' + (data.chauffeur || '') + ' · ' + quand(); }
+    $('sPh').onclick = function(){ var t = texte();
+      envoyerAuCoach('Signaler un souci', [
+        'WhatsApp s’ouvre sur la discussion avec ton coach, le message est déjà écrit : envoie-le.',
+        'Touche 📷 et photographie le problème (obligatoire).',
+        'Envoie la photo, puis reviens ici pour confirmer.'
+      ], t, 'le message et la photo', null); };
     $('modBox').querySelector('[data-x]').onclick = fermer;
   }
 
@@ -583,14 +615,16 @@
       });
   }
 
-  // Reprise automatique : si une tournée était en cours (appli fermée par le téléphone, appel, redémarrage),
-  // le suivi redémarre tout seul et le secteur se rouvre, sans rien demander au chauffeur.
+  // Appli fermée complètement pendant une tournée (balayée, ou arrêtée par le téléphone) : au lancement suivant,
+  // le secteur est mis en pause automatiquement. Le chauffeur rouvre sa carte et appuie sur « Reprendre ».
+  // (Passer sur une autre appli ou verrouiller l'écran ne ferme pas l'appli : le suivi continue.)
+  var pausePendante = false;
   function autoResume(){
     if (ls('on') !== wk() || watchId !== null || paused) return;
     var id = ls('cur'), s = null;
     ((data && data.secteurs) || []).forEach(function(x){ if (x.id === id && clos(x.id) == null) s = x; });
-    if (s) { cur = s; openMap(s); }
-    start();
+    lsDel('on'); ls('pause', 1); paused = true;
+    if (s) { cur = s; pausePendante = true; openMap(s); }
   }
 
   // ================= 2. Rappel code QR =================
@@ -807,11 +841,19 @@
     var k = parseKml(d.kml); sectorPoly = k.poly; streets = prepareStreets(k.streets);
     if (sectorPoly) L.polygon(sectorPoly, { color:'#00c800', weight:4, fillColor:'#00c800', fillOpacity:.06 }).addTo(gSector);
     drawAll(); drawPlaintes();
+    if (pausePendante && cur && cur.id === s.id) { pausePendante = false; setCtrl('paused'); sendProg('pause');
+      setLive('⏸ Secteur mis en pause (appli fermée) · appuie sur Reprendre', true); }
     var b = sectorPoly ? L.polygon(sectorPoly).getBounds() : (streets.length ? L.polyline(streets.map(function(s){ return s.ll; })).getBounds() : null);
     if (b && first && watchId === null) { map.fitBounds(b, { padding:[20, 20] }); first = false; }
     if (watchId === null && !ls('on')) setLive('');
   }
-  $('toHome').onclick = function(){ renderHome(); show('home'); };
+  $('toHome').onclick = function(){
+    if (watchId === null || paused) { renderHome(); show('home'); return; }
+    choix('Avant de quitter le secteur', [
+      ['⏸ Mettre en pause', function(){ $('pause').onclick(); renderHome(); show('home'); }],
+      ['■ Clôturer le secteur', function(){ openCloture(); }]
+    ]);
+  };
   $('qrbtn').onclick = function(){ if (cur) openQr(cur); };
 
   // bas de l'écran : liste des rues
@@ -1002,26 +1044,22 @@
   };
   $('go').onclick = function(){ if (watchId === null && !paused) start(); else openCloture(); };
 
-  // ---- Clôture : avertissement selon l'avancement (paiement à 90 %, bonus 10 % à 95 %, bonus 15 % à 98 %) ----
-  var PAYE = 90, BONUS10 = 95, BONUS15 = 98;
+  // ---- Clôture : paiement à partir de 98 % ; bonus 15 % à 98 % seulement pour les chauffeurs dont le bonus est activé ----
+  var PAYE = 98, BONUS15 = 98;
   function openCloture(){
     var pct = streets.length ? compute() : null, bonus = !!(data && data.bonus), al = [];
     $('cSect').textContent = cur ? cur.nom : '';
     $('cPct').textContent = pct == null ? '' : pct + ' %';
-    $('cPct').style.color = pct == null ? '' : (pct < PAYE ? '#dc2626' : (bonus && pct < BONUS15 ? '#d97706' : '#16a34a'));
+    $('cPct').style.color = pct == null ? '' : (pct < PAYE ? '#dc2626' : '#16a34a');
     function a(cls, t){ al.push('<div class="al ' + cls + '">' + t + '</div>'); }
     if (pct == null) a('amb', 'La carte de ce secteur n’est pas disponible : l’avancement ne peut pas être calculé.');
     else if (pct < PAYE) a('red', '⛔ <b>Ce secteur ne sera pas payé</b> si tu clôtures maintenant : il faut au moins ' + PAYE + ' % des rues faites.');
     else {
-      a('ok', '✅ Au-dessus de ' + PAYE + ' % : le secteur sera payé.');
-      if (bonus) {
-        if (pct < BONUS10) a('amb', '⚠️ En dessous de ' + BONUS10 + ' % : tu perds le <b>bonus de 10 %</b> et le <b>bonus de 15 %</b>.');
-        else if (pct < BONUS15) a('amb', '⚠️ Bonus de 10 % gagné, mais en dessous de ' + BONUS15 + ' % tu perds le <b>bonus de 15 %</b>.');
-        else a('ok', '🏆 Bonus de 15 % gagné.');
-      }
+      a('ok', '✅ ' + PAYE + ' % atteint : le secteur sera payé.');
+      if (bonus && pct >= BONUS15) a('ok', '🏆 Bonus de 15 % gagné.');
     }
     $('cAl').innerHTML = al.join('');
-    $('cOk').textContent = pct != null && (pct < PAYE || (bonus && pct < BONUS15)) ? 'Clôturer quand même' : 'Clôturer le secteur';
+    $('cOk').textContent = pct != null && pct < PAYE ? 'Clôturer quand même' : 'Clôturer le secteur';
     $('cloture').classList.add('on');
   }
   $('cBack').onclick = function(){ $('cloture').classList.remove('on'); };
